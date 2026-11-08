@@ -44,3 +44,4 @@ tests/    regla de decisión + concurrencia
 ```
 
 Reglas del protocolo y de la matriz: [`docs/CONTRACTS.md`](docs/CONTRACTS.md).
+Visión general y reparto de trabajo: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
