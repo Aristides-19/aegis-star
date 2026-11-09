@@ -14,6 +14,7 @@ import socket
 import threading
 
 from common.framing import ProtocolError, recv_event
+from ship import config
 from ship.console import emit, emit_error, render_event
 from ship.matrix import ThreatMatrix
 from ship.registry import NodeRegistry
@@ -24,13 +25,13 @@ class ShipServer:
 
     def __init__(
         self,
-        host: str = "0.0.0.0",
-        port: int = 5000,
+        host: str | None = None,
+        port: int | None = None,
         matrix: ThreatMatrix | None = None,
         registry: NodeRegistry | None = None,
     ) -> None:
-        self.host = host
-        self.port = port
+        self.host = host if host is not None else config.SHIP_HOST
+        self.port = port if port is not None else config.PORT
         self.matrix = matrix if matrix is not None else ThreatMatrix()
         self.registry = registry if registry is not None else NodeRegistry()
         self.running = True
@@ -39,7 +40,7 @@ class ShipServer:
 
     def start(self) -> None:
         self.server_sock.bind((self.host, self.port))
-        self.server_sock.listen(8)
+        self.server_sock.listen(config.LISTEN_BACKLOG)
         emit(f"[*] Ship Server escuchando en {self.host}:{self.port}")
 
         while self.running:
