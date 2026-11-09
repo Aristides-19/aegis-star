@@ -15,7 +15,7 @@ import threading
 
 from common.framing import ProtocolError, recv_event
 from ship import config
-from ship.console import emit, emit_error, render_event
+from ship.console import Dashboard
 from ship.matrix import ThreatMatrix
 from ship.registry import NodeRegistry
 
@@ -29,11 +29,13 @@ class ShipServer:
         port: int | None = None,
         matrix: ThreatMatrix | None = None,
         registry: NodeRegistry | None = None,
+        dashboard: Dashboard | None = None,
     ) -> None:
         self.host = host if host is not None else config.SHIP_HOST
         self.port = port if port is not None else config.PORT
         self.matrix = matrix if matrix is not None else ThreatMatrix()
         self.registry = registry if registry is not None else NodeRegistry()
+        self.dashboard = dashboard if dashboard is not None else Dashboard()
         self.running = True
         self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -41,7 +43,7 @@ class ShipServer:
     def start(self) -> None:
         self.server_sock.bind((self.host, self.port))
         self.server_sock.listen(config.LISTEN_BACKLOG)
-        emit(f"[*] Ship Server escuchando en {self.host}:{self.port}")
+        self.dashboard.start()
 
         while self.running:
             try:
@@ -55,6 +57,7 @@ class ShipServer:
             )
             worker.start()
 
+        self.dashboard.stop()
         self.server_sock.close()
 
     def stop(self) -> None:
@@ -83,14 +86,15 @@ class ShipServer:
 
                 self.matrix.apply(event)
                 board, alert = self.matrix.snapshot()
-                emit(render_event(event, board, alert))
+                self.dashboard.set_online(self.registry.online())
+                self.dashboard.apply(event, board, alert)
 
-        except (OSError, ProtocolError) as exc:
-            emit_error(f"[-] Conexión cerrada con sensor {assigned_sector}: {exc}")
+        except (OSError, ProtocolError):
+            pass
         finally:
             if assigned_sector is not None:
                 self.registry.unregister(assigned_sector)
-                emit_error(f"[-] sensor {assigned_sector} desconectado")
+                self.dashboard.set_online(self.registry.online())
             sock.close()
 
     @staticmethod

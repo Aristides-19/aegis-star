@@ -1,25 +1,31 @@
-"""Ship entry point: wire the board, the registry and the TCP server together."""
+"""Ship entry point: wire the dashboard, the board, the registry and the server."""
 
 from __future__ import annotations
 
 import signal
 import sys
 
-from ship.console import emit
+from rich.console import Console
+
+from ship import config
+from ship.console import Dashboard
 from ship.matrix import ThreatMatrix
 from ship.registry import NodeRegistry
 from ship.server import ShipServer
 
 
 def main() -> int:
-    emit("[bold]=== AEGIS-STAR: CENTRO DE MANDO ===[/bold]")
+    console = Console()
+    console.print(f"[bold]AEGIS-STAR[/bold] · nave escuchando en {config.SHIP_HOST}:{config.PORT}")
 
-    matrix = ThreatMatrix()
-    registry = NodeRegistry()
-    server = ShipServer(matrix=matrix, registry=registry)
+    dashboard = Dashboard()
+    server = ShipServer(
+        matrix=ThreatMatrix(),
+        registry=NodeRegistry(),
+        dashboard=dashboard,
+    )
 
     def handle_sigint(_sig: int, _frame: object) -> None:
-        emit("[*] Apagando sistemas...")
         server.stop()
         sys.exit(0)
 
