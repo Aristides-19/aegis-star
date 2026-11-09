@@ -1,20 +1,25 @@
 """Live dashboard for the ship.
 
-The screen is redrawn in place instead of appended to. Printing a block per
-event made the output unreadable at four events per second; a fixed layout
-that only changes what changed stays readable at any rate.
+The screen is redrawn in place instead of appended to. Two rules make that
+work with rich:
 
-All rendering goes through one lock, because eight worker threads call
-:meth:`Dashboard.refresh` concurrently.
+1. The layout must fit the terminal. If it is taller than the window, rich
+   cannot repaint in place and every update scrolls, which is worse than a
+   plain log. Sizes are therefore derived from ``console.size`` on every
+   render, and the dashboard degrades (fewer event lines, then no side panel)
+   as the window shrinks.
+2. All rendering goes through one lock, because eight worker threads call
+   :meth:`Dashboard.refresh` concurrently.
 """
 
 from __future__ import annotations
 
+import shutil
 import sys
 import threading
 from datetime import datetime
 
-from rich.console import Console, Group
+from rich.console import Console, Group, RenderableType
 from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
@@ -34,6 +39,9 @@ _ROWS: tuple[tuple[SectorType, SectorType, SectorType], ...] = (
 )
 
 _SECTOR_ORDER: tuple[SectorType, ...] = ("N", "NE", "E", "SE", "S", "SO", "O", "NO")
+
+#: Rows of chrome that are not the board or the event list.
+_FIXED_ROWS = 3 + 2 + 2 + 2 + 2  # header, borders, titles
 
 
 class Dashboard:
@@ -56,11 +64,17 @@ class Dashboard:
         if not self._use_live:
             self._console.print("[dim]stdout no es una terminal: modo texto[/dim]")
             return
+        # transient=False keeps the final frame on screen after stop().
+        # screen=False is deliberate: the alternate screen hides the user's
+        # scrollback and confuses recording tools. We rely on height fitting
+        # the window instead.
         self._live = Live(
             self._render(),
             console=self._console,
-            refresh_per_second=10,
-            screen=True,
+            refresh_per_second=8,
+            transient=False,
+            screen=False,
+            vertical_overflow="crop",
         )
         self._live.start()
 
@@ -77,7 +91,7 @@ class Dashboard:
             self._matrix = [list(row) for row in matrix]
             self._alert = alert
             self._events.insert(0, self._event_line(event, alert))
-            del self._events[self._max_events :]
+            del self._events[self._event_capacity() :]
         self.refresh()
 
     def set_online(self, online: set[SectorType]) -> None:
@@ -89,74 +103,65 @@ class Dashboard:
         if self._live is not None:
             self._live.update(self._render(), refresh=True)
             return
-        # No TTY (pipe, log file): print the board once per change instead of
-        # animating. Still readable, still one block at a time.
         if self._use_live or not self._events:
             return
-        board = self._events[0].plain if self._events else ""
-        rows = []
-        for row_index, names in enumerate(_ROWS):
-            cells = []
-            for col_index, name in enumerate(names):
-                if (row_index, col_index) == SHIP:
-                    cells.append(" NAVE ")
-                    continue
-                cells.append(f" {self._matrix[row_index][col_index]} {name:<2} ")
-            rows.append("|".join(cells))
-        alarm = "ALERTA ROJA" if self._alert == "RED_ALERT" else "   NORMAL   "
-        self._console.print(
-            f"[{'red' if self._alert == 'RED_ALERT' else 'green'}]{alarm}[/]  {board}",
-            highlight=False,
-        )
-        for row in rows:
-            self._console.print(f"  {row}", highlight=False)
+        self._print_block()
 
-    @staticmethod
-    def _event_line(event: SensorEvent, alert: AlertLevel) -> Text:
-        line = Text()
-        line.append(datetime.now().strftime("%H:%M:%S "), style="dim")
-        line.append(f"{event.sector:<2} ", style="cyan")
-        if event.val == 1:
-            line.append("DETECTA ", style="bold red")
-        else:
-            line.append("libre   ", style="dim")
-        line.append("→ ", style="dim")
-        line.append(alert, style="bold red" if alert == "RED_ALERT" else "bold green")
-        return line
+    # -- layout sizing -----------------------------------------------------
+    def _height(self) -> int:
+        try:
+            return self._console.size.height
+        except Exception:
+            return shutil.get_terminal_size().lines
+
+    def _width(self) -> int:
+        try:
+            return self._console.size.width
+        except Exception:
+            return shutil.get_terminal_size().columns
+
+    def _event_capacity(self) -> int:
+        """How many event lines fit, given the window height."""
+        available = self._height() - _FIXED_ROWS - 5  # board is 5 rows
+        return max(0, min(self._max_events, available))
+
+    def _side_by_side(self) -> bool:
+        """Below 60 columns the side panel is dropped, not squeezed."""
+        return self._width() >= 60
 
     # -- rendering ---------------------------------------------------------
     def _render(self) -> Layout:
-        root = Layout()
-        root.split_column(
-            Layout(self._header(), name="header", size=3),
-            Layout(self._middle(), name="middle"),
-            Layout(self._footer(), name="footer", size=self._max_events + 2),
-        )
-        return root
+        parts: list[RenderableType] = [self._header()]
+        if self._side_by_side():
+            row = Layout()
+            row.split_row(
+                Layout(self._board_panel(), name="board", ratio=3),
+                Layout(self._nodes_panel(), name="nodes", ratio=2),
+            )
+            parts.append(row)
+        else:
+            parts.append(self._board_panel())
+
+        capacity = self._event_capacity()
+        if capacity > 0:
+            parts.append(self._footer(capacity))
+        return Layout(Group(*parts))
 
     def _header(self) -> Panel:
         uptime = (datetime.now() - self._started).total_seconds()
         alarm = self._alert == "RED_ALERT"
         banner = (
-            Text(" ALERTA ROJA · colisión inminente ", style="bold white on red")
+            Text(" ALERTA ROJA ", style="bold white on red")
             if alarm
-            else Text(" NORMAL · tránsito seguro ", style="bold black on green")
+            else Text(" NORMAL ", style="bold black on green")
         )
         text = Text.assemble(
             ("AEGIS-STAR", "bold"),
-            ("  t+", "dim"),
-            (f"{uptime:5.1f}s  ", "dim"),
+            (" t+", "dim"),
+            (f"{uptime:.0f}s  ", "dim"),
             banner,
         )
         return Panel(text, border_style="red" if alarm else "green", height=3)
-
-    def _middle(self) -> Layout:
-        row = Layout()
-        row.split_row(
-            Layout(self._board_panel(), name="board", ratio=3),
-            Layout(self._nodes_panel(), name="nodes", ratio=2),
-        )
-        return row
 
     def _board_panel(self) -> Panel:
         grid = Table.grid(expand=True)
@@ -164,23 +169,21 @@ class Dashboard:
             grid.add_column(justify="center", ratio=1)
 
         for row_index, names in enumerate(_ROWS):
-            if row_index:
-                grid.add_row(Text(""), Text(""), Text(""))
             cells: list[Text] = []
             for col_index, name in enumerate(names):
                 if (row_index, col_index) == SHIP:
                     cells.append(Text("◉ NAVE", style="bold yellow"))
                     continue
                 value = self._matrix[row_index][col_index]
-                if value == 1:
-                    cells.append(Text(f"█ 1 {name}", style="bold red"))
-                else:
-                    cells.append(Text(f"· 0 {name}", style="dim"))
+                label = f"█ 1 {name}" if value == 1 else f"· 0 {name}"
+                cells.append(
+                    Text(label, style="bold red") if value == 1 else Text(label, style="dim")
+                )
             grid.add_row(*cells)
 
         return Panel(
             grid,
-            title="[bold]matriz[/bold] [dim]NO·N·NE / O·★·E / SO·S·SE[/dim]",
+            title=f"[bold]matriz[/bold] [dim]{'ALERTA' if self._alert == 'RED_ALERT' else 'segura'}[/dim]",
             border_style="red" if self._alert == "RED_ALERT" else "blue",
         )
 
@@ -188,38 +191,61 @@ class Dashboard:
         grid = Table.grid(expand=True, padding=(0, 1))
         grid.add_column(style="bold", width=3)
         grid.add_column(no_wrap=True)
-        grid.add_column(justify="right", width=5)
+        grid.add_column(justify="right", width=3)
 
         for sector in _SECTOR_ORDER:
             online = sector in self._online
             value = self._values[sector]
-            name = Text(sector, style="cyan" if online else "dim")
-            state = (
-                Text("en línea", style="green")
-                if online
-                else Text("sin enlace", style="yellow")
+            grid.add_row(
+                Text(sector, style="cyan" if online else "dim"),
+                Text("●", style="green") if online else Text("○", style="yellow"),
+                Text("1", style="bold red") if value == 1 else Text("0", style="dim"),
             )
-            cell = (
-                Text("1", style="bold red")
-                if value == 1
-                else Text("0", style="dim")
-            )
-            grid.add_row(name, state, cell)
 
-        busy = sum(1 for sector in _SECTOR_ORDER if sector in self._online)
         return Panel(
             grid,
-            title=f"[bold]sensores[/bold] [dim]{busy}/8[/dim]",
+            title=f"[bold]sensores[/bold] [dim]{len(self._online)}/8[/dim]",
             border_style="blue",
         )
 
-    def _footer(self) -> Panel:
+    def _footer(self, capacity: int) -> Panel:
+        shown = self._events[:capacity]
         body: Group | Text
-        if self._events:
-            body = Group(*self._events)
+        if shown:
+            body = Group(*shown)
         else:
             body = Text("esperando eventos...", style="dim")
-        return Panel(body, title="[bold]eventos[/bold]", border_style="dim")
+        return Panel(
+            body,
+            title="[bold]eventos[/bold]",
+            border_style="dim",
+            height=capacity + 2,
+        )
+
+    # -- event lines -------------------------------------------------------
+    @staticmethod
+    def _event_line(event: SensorEvent, alert: AlertLevel) -> Text:
+        line = Text()
+        line.append(datetime.now().strftime("%H:%M:%S "), style="dim")
+        line.append(f"{event.sector:<2} ", style="cyan")
+        line.append("DETECTA " if event.val == 1 else "libre   ", style="bold red" if event.val == 1 else "dim")
+        line.append("→ ", style="dim")
+        line.append(alert, style="bold red" if alert == "RED_ALERT" else "bold green")
+        return line
+
+    def _print_block(self) -> None:
+        """Non-TTY fallback: one compact block per change, grep-friendly."""
+        line = self._events[0].plain if self._events else ""
+        alarm = "ALERTA ROJA" if self._alert == "RED_ALERT" else "NORMAL     "
+        self._console.print(f"{alarm}  {line}", highlight=False)
+        for row_index, names in enumerate(_ROWS):
+            cells = []
+            for col_index, name in enumerate(names):
+                if (row_index, col_index) == SHIP:
+                    cells.append(" NAVE ")
+                    continue
+                cells.append(f" {self._matrix[row_index][col_index]} {name:<2} ")
+            self._console.print("  " + "|".join(cells), highlight=False)
 
 
 __all__ = ["Dashboard"]
