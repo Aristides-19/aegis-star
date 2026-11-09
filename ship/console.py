@@ -62,7 +62,13 @@ class Dashboard:
     # -- lifecycle ---------------------------------------------------------
     def start(self) -> None:
         if not self._use_live:
-            self._console.print("[dim]stdout no es una terminal: modo texto[/dim]")
+            # Loud on purpose: a silent fallback looks like a broken TUI.
+            hint = (
+                "\n  stdout no es una terminal (¿lo estás pasando por un pipe o tee?).\n"
+                "  El dashboard interactivo necesita un TTY.\n"
+                "  Arranca la nave directamente:  .venv/bin/python -m ship.main\n"
+            )
+            self._console.print(f"[yellow]{hint}[/yellow]")
             return
         # transient=False keeps the final frame on screen after stop().
         # screen=False is deliberate: the alternate screen hides the user's

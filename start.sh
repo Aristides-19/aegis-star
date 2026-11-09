@@ -61,7 +61,9 @@ if [[ "$MODE" == "plain" ]]; then
   echo "8 sensores lanzados. Sus logs: /tmp/aegis-sensor-<SECTOR>.log"
   echo
 
-  "$PYTHON" -u -m ship.main 2>&1 | tee /tmp/aegis-ship.log
+  # Sin pipe: con "| tee" stdout deja de ser un TTY y el dashboard pierde
+  # el modo interactivo, cayendo al log de texto.
+  "$PYTHON" -u -m ship.main 2> >(tee /tmp/aegis-ship.err.log >&2)
   exit 0
 fi
 
@@ -83,11 +85,11 @@ fi
 # One window per process: nine tiled panes are unreadable, and each sensor
 # deserves a readable log.
 tmux new-session -d -s "$SESSION" -c "$ROOT" -n ship \
-  "$PYTHON -u -m ship.main 2>&1 | tee /tmp/aegis-ship.log"
+  "$PYTHON -u -m ship.main 2> >(tee /tmp/aegis-ship.err.log >&2)"
 
 for sector in "${SENSORS[@]}"; do
   tmux new-window -t "$SESSION" -c "$ROOT" -n "sensor-$sector" \
-    "$PYTHON -u -m sensor.main $sector 2>&1 | tee /tmp/aegis-sensor-$sector.log"
+    "$PYTHON -u -m sensor.main $sector > /tmp/aegis-sensor-$sector.log 2>&1"
 done
 
 tmux select-window -t "$SESSION:ship"
