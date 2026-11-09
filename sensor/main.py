@@ -11,6 +11,9 @@ import socket
 import sys
 import time
 
+from rich.console import Console
+from rich.text import Text
+
 from common.framing import send_msg
 from common.sectors import SECTOR_MAP, SectorType
 from ship import config
@@ -32,6 +35,14 @@ def _checked_val(value: int | None) -> DetectionVal | None:
     if value == 0:
         return 0
     return None
+
+
+_CONSOLE = Console(highlight=False)
+
+
+def _say(sector: SectorType, message: str, style: str = "dim") -> None:
+    """One coloured line, sector first so the panes line up."""
+    _CONSOLE.print(Text.assemble((f" {sector:<2} ", "bold cyan"), (message, style)))
 
 
 def _connect(sector: SectorType) -> socket.socket | None:
@@ -59,22 +70,28 @@ def run_sensor(
         sock = _connect(sector)
         if sock is None:
             if not waiting_announced:
-                print(f"[.] sensor {sector}: esperando a la nave...", flush=True)
+                _say(sector, "esperando a la nave...", "dim")
                 waiting_announced = True
             time.sleep(config.RECONNECT_DELAY)
             continue
 
         waiting_announced = False
-        print(f"[+] sensor {sector}: conectado", flush=True)
+        _say(sector, f"conectado a {config.SENSOR_HOST}:{config.PORT}", "bold green")
         try:
             while True:
-                send_msg(sock, generate_event(sector, seq, force_val=_checked_val(force_val)))
+                event = generate_event(sector, seq, force_val=_checked_val(force_val))
+                send_msg(sock, event)
+                _say(
+                    sector,
+                    f"#{seq:<4} enviado   val={event.val}",
+                    "bold red" if event.val == 1 else "dim",
+                )
                 seq += 1
                 if once:
                     return
                 time.sleep(delay)
         except OSError:
-            print(f"[-] sensor {sector}: enlace perdido, reintentando", flush=True)
+            _say(sector, "enlace perdido, reintentando", "bold yellow")
         finally:
             sock.close()
 
@@ -124,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         run_sensor(sector, interval=interval, once=once, force_val=force_val)
     except KeyboardInterrupt:
-        print(f"[-] sensor {sector}: detenido", flush=True)
+        _say(sector, "detenido", "bold yellow")
     return 0
 
 

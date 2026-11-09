@@ -67,7 +67,7 @@ if [[ "$MODE" == "plain" ]]; then
   trap cleanup INT TERM EXIT
 
   for sector in "${SENSORS[@]}"; do
-    "$PYTHON" -u -m sensor.main "$sector" > "/tmp/aegis-sensor-$sector.log" 2>&1 &
+    "$PYTHON" -u -m sensor.main "$sector" &
     pids+=($!)
   done
   echo "8 sensores lanzados. Sus logs: /tmp/aegis-sensor-<SECTOR>.log"
@@ -109,7 +109,7 @@ tmux new-session -d -s "$SESSION" -c "$ROOT" -n ship \
 
 for sector in "${SENSORS[@]}"; do
   tmux new-window -t "$SESSION" -c "$ROOT" -n "sensor-$sector" \
-    "$PYTHON -u -m sensor.main $sector > /tmp/aegis-sensor-$sector.log 2>&1"
+    "$PYTHON -u -m sensor.main $sector"
 done
 
 tmux select-window -t "$SESSION:ship"
