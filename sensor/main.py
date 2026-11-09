@@ -7,9 +7,11 @@ launch all eight sensors without racing the server.
 
 from __future__ import annotations
 
+import argparse
 import socket
 import sys
 import time
+from typing import cast
 
 from rich.console import Console
 from rich.text import Text
@@ -18,23 +20,6 @@ from common.framing import send_msg
 from common.sectors import SECTOR_MAP, SectorType
 from ship import config
 from sensor.world import DetectionVal, generate_event
-
-
-def _as_sector(name: str) -> SectorType:
-    """Narrow an already-validated sector name to its literal type."""
-    for sector in SECTOR_MAP:
-        if sector == name:
-            return sector
-    raise KeyError(name)
-
-
-def _checked_val(value: int | None) -> DetectionVal | None:
-    """Narrow a CLI integer to the literal type the protocol expects."""
-    if value == 1:
-        return 1
-    if value == 0:
-        return 0
-    return None
 
 
 _CONSOLE = Console(highlight=False)
@@ -79,7 +64,7 @@ def run_sensor(
         _say(sector, f"conectado a {config.SENSOR_HOST}:{config.PORT}", "bold green")
         try:
             while True:
-                event = generate_event(sector, seq, force_val=_checked_val(force_val))
+                event = generate_event(sector, seq, force_val=cast(DetectionVal | None, force_val))
                 send_msg(sock, event)
                 _say(
                     sector,
@@ -96,50 +81,23 @@ def run_sensor(
             sock.close()
 
 
-def _parse_args(argv: list[str]) -> tuple[SectorType, float | None, bool, int | None]:
-    if not argv or argv[0] not in SECTOR_MAP:
-        valid = ", ".join(SECTOR_MAP.keys())
-        print("Uso: python -m sensor.main <SECTOR> [--once] [--val 0|1] [--interval S]")
-        print(f"Sectores válidos: {valid}")
-        raise SystemExit(1)
-
-    sector = _as_sector(argv[0])
-    interval = None
-    once = False
-    force_val = None
-
-    rest = argv[1:]
-    index = 0
-    while index < len(rest):
-        match rest[index]:
-            case "--once":
-                once = True
-            case "--val":
-                try:
-                    force_val = int(rest[index + 1])
-                except (IndexError, ValueError):
-                    print("--val necesita 0 o 1")
-                    raise SystemExit(1) from None
-                index += 1
-            case "--interval":
-                try:
-                    interval = float(rest[index + 1])
-                except (IndexError, ValueError):
-                    print("--interval necesita un número de segundos")
-                    raise SystemExit(1) from None
-                index += 1
-            case unknown:
-                print(f"Opción desconocida: {unknown}")
-                raise SystemExit(1)
-        index += 1
-
-    return sector, interval, once, force_val
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="python -m sensor.main",
+        description="Sensor de un sector: conecta a la nave y reporta detecciones.",
+    )
+    parser.add_argument("sector", choices=sorted(SECTOR_MAP), help="sector que vigila")
+    parser.add_argument("--once", action="store_true", help="enviar un solo evento y salir")
+    parser.add_argument("--val", type=int, choices=(0, 1), help="forzar el valor enviado")
+    parser.add_argument("--interval", type=float, help="segundos entre envíos")
+    return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
-    sector, interval, once, force_val = _parse_args(argv if argv is not None else sys.argv[1:])
+    args = _parse_args(sys.argv[1:] if argv is None else argv)
+    sector: SectorType = args.sector
     try:
-        run_sensor(sector, interval=interval, once=once, force_val=force_val)
+        run_sensor(sector, interval=args.interval, once=args.once, force_val=args.val)
     except KeyboardInterrupt:
         _say(sector, "detenido", "bold yellow")
     return 0
