@@ -21,14 +21,26 @@ if [[ ! -x "$PYTHON" ]]; then
   exit 1
 fi
 
+kill_everything() {
+  # Sessions can linger with clients still attached; detach first, then kill,
+  # so tmux does not leave the panes running in the background.
+  if command -v tmux >/dev/null 2>&1 && tmux has-session -t "$SESSION" 2>/dev/null; then
+    tmux list-clients -t "$SESSION" 2>/dev/null \
+      | awk '{print $1}' \
+      | while read -r client; do tmux detach-client -t "$client" 2>/dev/null || true; done
+    tmux kill-session -t "$SESSION" 2>/dev/null || true
+  fi
+  # Belt and braces: any stray process from a previous run, whatever the
+  # session was called.
+  pkill -f "[s]hip\.main" 2>/dev/null || true
+  pkill -f "[s]ensor\.main" 2>/dev/null || true
+}
+
 MODE="tmux"
 case "${1:-}" in
   -k|--kill)
-    if command -v tmux >/dev/null 2>&1; then
-      tmux kill-session -t "$SESSION" 2>/dev/null || true
-    fi
-    pkill -f "sensor.main" 2>/dev/null || true
-    echo "Sesión '$SESSION' detenida."
+    kill_everything
+    echo "Sesión '$SESSION' y procesos detenidos."
     exit 0
     ;;
   --plain)
@@ -76,10 +88,18 @@ if ! command -v tmux >/dev/null 2>&1; then
   exit 1
 fi
 
+# A previous run must not survive: two ships on the same port means the
+# second one fails to bind and the panes silently die.
 if tmux has-session -t "$SESSION" 2>/dev/null; then
-  echo "La sesión '$SESSION' ya existe. Usa ./start.sh -k para reiniciarla." >&2
-  echo "Adjuntando..."
-  exec tmux attach -t "$SESSION"
+  echo "Sesión '$SESSION' existente: reiniciando."
+  kill_everything
+  sleep 0.5
+elif pgrep -f "[s]hip\.main" >/dev/null 2>&1; then
+  # A ship from a --plain run or from a previous manual launch would make the
+  # new one fail to bind the port.
+  echo "Hay una nave corriendo fuera de tmux: deteniéndola."
+  kill_everything
+  sleep 0.5
 fi
 
 # One window per process: nine tiled panes are unreadable, and each sensor

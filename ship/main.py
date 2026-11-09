@@ -5,8 +5,6 @@ from __future__ import annotations
 import signal
 import sys
 
-from rich.console import Console
-
 from ship import config
 from ship.console import Dashboard
 from ship.matrix import ThreatMatrix
@@ -15,9 +13,6 @@ from ship.server import ShipServer
 
 
 def main() -> int:
-    console = Console()
-    console.print(f"[bold]AEGIS-STAR[/bold] · nave escuchando en {config.SHIP_HOST}:{config.PORT}")
-
     dashboard = Dashboard()
     server = ShipServer(
         matrix=ThreatMatrix(),

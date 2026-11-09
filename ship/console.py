@@ -28,6 +28,7 @@ from rich.text import Text
 
 from common.protocol import AlertLevel, SensorEvent
 from common.sectors import SECTOR_MAP, SHIP, Matrix, SectorType
+from ship import config
 
 _PRINT_LOCK = threading.Lock()
 
@@ -115,8 +116,14 @@ class Dashboard:
 
     # -- layout sizing -----------------------------------------------------
     def _height(self) -> int:
+        """Usable rows, minus one so the last line is not clipped.
+
+        console.size reports the pane height, but a frame that fills it
+        exactly loses its bottom border to the status bar or to the cursor
+        line. One row of slack keeps the box closed.
+        """
         try:
-            return self._console.size.height
+            return max(1, self._console.size.height - 1)
         except Exception:
             return shutil.get_terminal_size().lines
 
@@ -136,22 +143,35 @@ class Dashboard:
         return self._width() >= 60
 
     # -- rendering ---------------------------------------------------------
-    def _render(self) -> Layout:
+    def _render(self) -> RenderableType:
         parts: list[RenderableType] = [self._header()]
         if self._side_by_side():
-            row = Layout()
-            row.split_row(
-                Layout(self._board_panel(), name="board", ratio=3),
-                Layout(self._nodes_panel(), name="nodes", ratio=2),
-            )
-            parts.append(row)
+            columns = Table.grid(expand=True)
+            columns.add_column(ratio=3)
+            columns.add_column(ratio=2)
+            columns.add_row(self._board_panel(), self._nodes_panel())
+            parts.append(columns)
         else:
             parts.append(self._board_panel())
 
         capacity = self._event_capacity()
         if capacity > 0:
             parts.append(self._footer(capacity))
-        return Layout(Group(*parts))
+
+        # Pad to the usable height so the frame ends one row above the status
+        # bar instead of being clipped by it.
+        body = Group(*parts)
+        try:
+            used = sum(
+                len(self._console.render_lines(part, self._console.options))
+                for part in parts
+            )
+        except Exception:
+            return body
+        slack = self._height() - used
+        if slack > 0:
+            return Group(body, Text("\n" * (slack - 1)))
+        return body
 
     def _header(self) -> Panel:
         uptime = (datetime.now() - self._started).total_seconds()
@@ -163,6 +183,7 @@ class Dashboard:
         )
         text = Text.assemble(
             ("AEGIS-STAR", "bold"),
+            (f" :{config.PORT}", "dim"),
             (" t+", "dim"),
             (f"{uptime:.0f}s  ", "dim"),
             banner,
