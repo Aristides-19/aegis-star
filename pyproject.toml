@@ -17,3 +17,7 @@ packages = ["common", "ship", "sensor"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
+enableTypeIgnoreComments = true
