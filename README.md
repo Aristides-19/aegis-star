@@ -11,8 +11,7 @@ Universidad Metropolitana · Sistemas Distribuidos.
 ## Instalar
 
 ```bash
-uv venv                # crea .venv
-uv pip install -r requirements.txt
+uv sync
 ```
 
 ## Correr los tests
@@ -24,15 +23,11 @@ uv run pytest -q
 ## Arrancar
 
 ```bash
-./start.sh             # nave + 8 sensores en tmux
+uv run python -m ship.main              # la nave
+uv run python -m sensor.main N          # un sensor, en otra terminal
 ```
 
-O a mano, en terminales separadas:
-
-```bash
-uv run python -m ship.main
-uv run python -m sensor.main --sector N
-```
+El puerto es `5000`: la nave escucha, los sensores conectan.
 
 ## Estructura
 

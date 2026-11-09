@@ -1,0 +1,19 @@
+[project]
+name = "aegis-star"
+version = "0.1.0"
+description = "Sistema de detección y evasión en estrella (8 sectores)"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.0.0", "websockets>=12.0", "rich>=13.0.0"]
+
+[dependency-groups]
+dev = ["pytest>=8.0.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["common", "ship", "sensor"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
