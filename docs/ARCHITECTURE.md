@@ -141,10 +141,10 @@ when these are true:
 - [x] The decision rule is implemented and matches all five reference states.
 - [x] The wire protocol is defined and framed (NDJSON over TCP).
 - [x] The shared board is concurrency-safe and proves it under 8 threads.
-- [ ] A sensor process connects and sends real events.
-- [ ] The ship accepts 8 connections and builds the board from them.
-- [ ] `start.sh` brings up the ship and all eight sensors in tmux.
-- [ ] The five reference states are reproducible from the running system.
+- [x] A sensor process connects and sends real events.
+- [x] The ship accepts 8 connections and builds the board from them.
+- [x] `start.sh` brings up the ship and all eight sensors (tmux, or `--plain`).
+- [x] The five reference states are reproducible from the running system.
 
 Out of scope for delivery 1: heartbeats, reconnection with backoff beyond a
 simple retry, alien nodes, deduplication, message prioritisation, the PRNG,

@@ -1,0 +1,26 @@
+/* Palette, change anything here, but keep the variable names. */
+
+:root {
+  --bg:      #0a0e17;
+  --panel:   #131a26;
+  --border:  #1e2b3d;
+  --text:    #c8d4e3;
+  --muted:   #6b7d94;
+  --accent:  #38bdf8;
+  --alert:   #ff4d5a;
+}
+
+/* Only enough to keep the page readable. */
+
+body {
+  margin: 0;
+  padding: 2rem 1rem;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+}
+
+input,
+button {
+  font: inherit;
+}
