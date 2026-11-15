@@ -79,7 +79,9 @@ def thanks(request: Request) -> Response:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("web.main:app", host="127.0.0.1", port=8080, reload=True)
+    # Pass the object, not "web.main:app": the file has to run both here and
+    # as a bare main.py in the delivery, where the module has no package.
+    uvicorn.run(app, host="127.0.0.1", port=8080)
 
 
 __all__ = ["app"]
