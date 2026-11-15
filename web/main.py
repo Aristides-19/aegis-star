@@ -15,7 +15,6 @@ from typing import Annotated
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr, ValidationError
 
@@ -27,7 +26,6 @@ CSV_HEADER = ("email", "timestamp")
 _CSV_LOCK = threading.Lock()
 
 app = FastAPI(title="Aegis-Star 8-Sector")
-app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 templates = Jinja2Templates(directory=ROOT / "templates")
 
 
