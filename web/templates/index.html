@@ -95,7 +95,7 @@
           Matriz de Amenazas 3×3
         </h2>
         <p class="text-sm text-slate-400 leading-relaxed">
-          Cada celda periférica representa un nodo de detección direccional. El sistema procesa eventos concurrentes eliminando duplicados y clasificando trayectorias al instante:
+          Cada celda periférica representa un nodo de detección direccional. El sistema procesa los eventos de los ocho nodos y clasifica la trayectoria en cada trama:
         </p>
         <ul class="space-y-2 text-sm">
           <li class="flex items-start gap-2">
@@ -104,9 +104,12 @@
           </li>
           <li class="flex items-start gap-2">
             <span class="text-emerald-400 font-bold font-mono whitespace-nowrap">● NORMAL:</span> 
-            <span class="text-slate-300">Dos o más 1s consecutivos y adyacentes confirman un tránsito tangencial seguro.</span>
+            <span class="text-slate-300">Todos los 1 tienen al menos un vecino con 1, aunque formen grupos separados: tránsito tangencial seguro.</span>
           </li>
         </ul>
+        <p class="text-xs text-slate-500 font-mono leading-relaxed pt-1">
+          N y NO → NORMAL · NO y SE → ALERTA ROJA
+        </p>
       </div>
 
       <!-- Representación visual de la Rejilla del Radar -->
