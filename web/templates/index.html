@@ -48,14 +48,13 @@
 <body class="bg-spaceBg text-slate-200 font-sans min-h-screen flex flex-col justify-between selection:bg-accentCyan selection:text-black">
 
   <!-- BARRA DE NAVEGACIÓN -->
-  <header class="border-b border-spaceBorder bg-spaceBg/90 backdrop-blur sticky top-0 z-50 px-4 sm:px-6 py-4">
+  <header class="border-b border-spaceBorder bg-spaceBg sticky top-0 z-50 px-4 sm:px-6 py-4">
     <div class="max-w-6xl mx-auto flex items-center justify-between gap-2">
       
-      <!-- Título de la marca con ícono de radar animado -->
+      <!-- Título de la marca con ícono de radar -->
       <div class="flex items-center space-x-3">
-        <div class="relative flex items-center justify-center w-8 h-8 rounded-lg bg-accentCyan/10 border border-accentCyan/30 text-accentCyan flex-shrink-0">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-lg bg-accentCyan opacity-25"></span>
-          <svg class="w-4 h-4 text-accentCyan relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-accentCyan/10 border border-accentCyan/30 text-accentCyan flex-shrink-0">
+          <svg class="w-4 h-4 text-accentCyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="9" stroke-width="2"></circle>
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v18m9-9H3"></path>
             <circle cx="12" cy="12" r="2.5" fill="currentColor"></circle>
@@ -91,7 +90,7 @@
     <!-- CAPACIDADES VISUALES Y MATRIZ 3x3 -->
     <section class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center bg-spacePanel/50 border border-spaceBorder p-8 rounded-2xl">
       <div class="space-y-4">
-        <h2 class="text-2xl font-bold text-white flex items-center gap-2 [text-shadow:0_0_6px_rgba(255,255,255,0.4),0_0_12px_rgba(255,255,255,0.2)]">
+        <h2 class="text-2xl font-bold text-white flex items-center gap-2">
           Matriz de Amenazas 3×3
         </h2>
         <p class="text-sm text-slate-400 leading-relaxed">
@@ -117,7 +116,7 @@
         <div class="text-xs font-mono text-slate-500 mb-4 tracking-widest uppercase">Grid de Cobertura Direccional</div>
         <div class="grid grid-cols-3 gap-3 w-64 text-center font-mono">
           <div class="bg-spacePanel border border-spaceBorder/80 p-3 rounded text-xs text-slate-300">NO</div>
-          <div class="bg-spacePanel border border-accentCyan/50 text-accentCyan p-3 rounded text-xs font-bold shadow-lg shadow-accentCyan/10">N</div>
+          <div class="bg-spacePanel border border-spaceBorder/80 p-3 rounded text-xs text-slate-300">N</div>
           <div class="bg-spacePanel border border-spaceBorder/80 p-3 rounded text-xs text-slate-300">NE</div>
           
           <div class="bg-spacePanel border border-spaceBorder/80 p-3 rounded text-xs text-slate-300">O</div>
@@ -189,11 +188,8 @@
     <!-- FORMULARIO DE REGISTRO / CTA -->
     <div id="registro" class="relative max-w-xl mx-auto">
       
-      <!-- Efecto de resplandor gradiente detrás del panel -->
-      <div class="absolute -inset-0.5 bg-gradient-to-r from-accentCyan via-sky-500 to-indigo-600 rounded-2xl blur opacity-30"></div>
-      
       <!-- Panel de registro -->
-      <section class="relative bg-spacePanel border border-spaceBorder p-8 rounded-2xl text-center space-y-6 shadow-2xl">
+      <section class="bg-spacePanel border border-spaceBorder p-8 rounded-2xl text-center space-y-6">
         <div class="space-y-2">
           <h2 class="text-2xl font-bold text-white tracking-wide">Recibir Notificaciones de Despliegue</h2>
           <p class="text-sm text-slate-400">
@@ -220,7 +216,7 @@
           <button 
             type="submit" 
             id="cta-button"
-            class="relative overflow-hidden w-full bg-accentCyan hover:bg-sky-400 text-slate-950 font-bold py-3.5 rounded-lg text-sm tracking-wide transition-colors duration-300 cursor-pointer shadow-lg shadow-accentCyan/20"
+            class="relative overflow-hidden w-full bg-accentCyan hover:bg-sky-400 text-slate-950 font-bold py-3.5 rounded-lg text-sm tracking-wide transition-colors duration-300 cursor-pointer"
           >
             <span class="relative z-10 pointer-events-none">NOTIFÍCAME DEL DESPLIEGUE</span>
           </button>
