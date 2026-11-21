@@ -110,8 +110,9 @@ Design (not built yet, entry point `common/rng.py`):
 - Determinism is the debugging feature: a run that raises `RED_ALERT` at
   `t=4.2` can be replayed exactly.
 
-This is delivery-2 work. Nothing in the delivery-1 code depends on it: sensors
-can use plain `random` today, and the swap is local to `sensor/world.py`.
+This is delivery-2 work, tracked in [`PENDING.md`](PENDING.md) item 1.
+Nothing in the delivery-1 code depends on it: sensors can use plain `random`
+today, and the swap is local to `sensor/world.py`.
 
 ## 6. Fault model
 
@@ -125,7 +126,8 @@ Three failure modes are in scope, in increasing order of difficulty:
 
 Delivery 1 covers the first partly (the ship tolerates a dropped connection
 because each sensor runs in its own thread) and reserves the field for the
-third. The heartbeat timer is delivery 2.
+third. The heartbeat timer and the alien handling are delivery 2, tracked in
+[`PENDING.md`](PENDING.md) items 2 and 5.
 
 Important: **a dead sensor does not clear its cell.** A `0` from the sensor is
 a real reading; silence is not. Losing `N` means the board keeps whatever `N`
@@ -182,13 +184,12 @@ Split by responsibility layer, not by folder, so neither side blocks the
 other.
 
 **A (me):** `common/`, `ship/detector.py`, `ship/matrix.py`, `ship/config.py`,
-`ship/main.py`, `tools/fake_sensor.py`, `start.sh`, tests for the rule and the
-board. Delivery 2: `ship/hub.py`, `common/rng.py`, alien nodes,
-deduplication.
+`ship/main.py`, `start.sh`, tests for the rule and the board.
 
 **B (partner):** `ship/server.py`, `ship/registry.py`, `sensor/main.py`,
-`sensor/world.py`, tests for the sensor. Delivery 2: `ship/ws_bridge.py`,
-`ui/`, video.
+`sensor/world.py`, tests for the sensor.
+
+For what is left and who owns it, see [`PENDING.md`](PENDING.md).
 
 The handoff point is `CONTRACTS.md`. B can start `server.py` on day one
 because `framing.recv_event()` and `ThreatMatrix.apply()` already exist and
