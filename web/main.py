@@ -1,7 +1,7 @@
 """Landing page for Aegis-Star 8-Sector.
 
 Two routes: the page, and the POST that records a visitor's email in
-``usuarios.csv``. Pydantic validates the address before anything is written, so
+``users.csv``. Pydantic validates the address before anything is written, so
 an invalid one never reaches the file.
 """
 
@@ -19,7 +19,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr, ValidationError
 
 ROOT = Path(__file__).parent
-CSV_PATH = ROOT / "usuarios.csv"
+CSV_PATH = ROOT / "users.csv"
 CSV_HEADER = ("email", "timestamp")
 
 #: Serializes appends: two requests can land in the same millisecond.
