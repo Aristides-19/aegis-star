@@ -41,13 +41,6 @@ _SECTORS: tuple[SectorType, ...] = ("N", "NE", "E", "SE", "S", "SO", "O", "NO")
 
 _ALARM_TITLE = "[bold red]ALERTA[/bold red]"
 
-
-def _nodes_title(online: int, suspect: int) -> str:
-    """Panel title: connected nodes, plus suspects when there are any."""
-    title = f"[bold]sensores[/bold] [dim]{online}/8[/dim]"
-    if suspect:
-        title += f" [bold magenta]{suspect} alien[/bold magenta]"
-    return title
 _SAFE_TITLE = "[bold]matriz[/bold]"
 
 
@@ -59,6 +52,7 @@ class Dashboard:
         self._events: list[Text] = []
         self._online: set[SectorType] = set()
         self._suspect: set[SectorType] = set()
+        self._uncovered: set[SectorType] = set()
         self._matrix: list[list[int]] = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
         self._alert: AlertLevel = "NORMAL"
         self._values: dict[SectorType, int] = {sector: 0 for sector in SECTOR_MAP}
@@ -116,6 +110,13 @@ class Dashboard:
         if refresh:
             self.refresh()
 
+    def set_uncovered(self, uncovered: set[SectorType], refresh: bool = True) -> None:
+        """Sectors with no live sensor."""
+        with _PRINT_LOCK:
+            self._uncovered = set(uncovered)
+        if refresh:
+            self.refresh()
+
     def set_suspect(self, suspect: set[SectorType], refresh: bool = True) -> None:
         """Sectors that have sent alien-flagged events."""
         with _PRINT_LOCK:
@@ -169,14 +170,13 @@ class Dashboard:
                 else Text("0", style="dim"),
             )
 
-        # Cálculo dinámico de cobertura para el panel
         online_count = len(self._online)
-        uncovered_count = 8 - online_count
+        uncovered_count = len(self._uncovered)
         sensors_title = f"[bold]sensores[/bold] [dim]{online_count}/8[/dim]"
         if self._suspect:
             sensors_title += f" [bold magenta]{len(self._suspect)} alien[/bold magenta]"
-        if uncovered_count > 0:
-            sensors_title += f" [dim yellow]({uncovered_count} sin cobertura)[/dim yellow]"
+        if uncovered_count:
+            sensors_title += f" [yellow]{uncovered_count} sin cobertura[/yellow]"
 
         columns = Table.grid(expand=True)
         columns.add_column(ratio=3)

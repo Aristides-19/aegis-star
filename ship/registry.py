@@ -24,10 +24,6 @@ class NodeRegistry:
             self._online.add(sector)
             self._last_seen[sector] = ts
 
-    def touch(self, sector: SectorType, now: float | None = None) -> None:
-        """Update timestamp for an already registered sector."""
-        self.register(sector, now)
-
     def unregister(self, sector: SectorType) -> None:
         """Remove a sector when its connection cleanly closes."""
         with self._lock:

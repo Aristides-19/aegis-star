@@ -37,6 +37,10 @@ class _SilentDashboard:
     def set_suspect(self, suspect, refresh: bool = True) -> None:  # type: ignore[no-untyped-def]
         pass
 
+    def set_uncovered(self, uncovered, refresh: bool = True) -> None:  # type: ignore[no-untyped-def]
+        pass
+
+
     def refresh(self) -> None:
         self.refreshes += 1
 

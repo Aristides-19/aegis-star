@@ -27,6 +27,7 @@ class SilentDashboard:
     def __init__(self) -> None:
         self.online: set[SectorType] = set()
         self.suspect: set[SectorType] = set()
+        self.uncovered: set[SectorType] = set()
         self.events: list[SensorEvent] = []
 
     def start(self) -> None: ...
@@ -37,6 +38,9 @@ class SilentDashboard:
 
     def set_online(self, online, refresh: bool = True) -> None:  # type: ignore[no-untyped-def]
         self.online = set(online)
+
+    def set_uncovered(self, uncovered, refresh: bool = True) -> None:  # type: ignore[no-untyped-def]
+        self.uncovered = set(uncovered)
 
     def set_suspect(self, suspect, refresh: bool = True) -> None:  # type: ignore[no-untyped-def]
         self.suspect = set(suspect)

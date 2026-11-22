@@ -148,6 +148,7 @@ class ShipServer:
         for event in batch:
             self.dashboard.apply(event, board, alert, refresh=False)
         self.dashboard.set_online(self.registry.online(), refresh=False)
+        self.dashboard.set_uncovered(self.registry.uncovered(), refresh=False)
         self.dashboard.set_suspect(self.matrix.suspect(), refresh=False)
         self.dashboard.refresh()
 
