@@ -22,6 +22,7 @@ class ThreatMatrix:
         self._lock = threading.Lock()
         self._cells: list[list[int]] = empty_matrix()
         self._alert: AlertLevel = "NORMAL"
+        self._last_seq: dict[SectorType, int] = {}
 
     def set_sector(self, sector: SectorType, value: int) -> bool:
         """Write one cell. Returns True if it changed, False on a repeat write."""
@@ -36,15 +37,31 @@ class ThreatMatrix:
             return True
 
     def apply(self, event: SensorEvent) -> bool:
-        """Apply a DETECTION event. Heartbeats never change the matrix."""
+        """Apply an event, dropping duplicates and out-of-order arrivals.
+
+        Returns True only when the board changed. A heartbeat is accepted for
+        its ``seq`` and then ignored.
+        """
+        with self._lock:
+            last = self._last_seq.get(event.sector)
+            if last is not None and event.seq <= last:
+                return False
+            self._last_seq[event.sector] = event.seq
+
         if event.type != "DETECTION":
             return False
         return self.set_sector(event.sector, event.val)
+
+    def forget(self, sector: SectorType) -> None:
+        """Drop the sequence history for one sector after a reconnect."""
+        with self._lock:
+            self._last_seq.pop(sector, None)
 
     def reset(self) -> None:
         with self._lock:
             self._cells = empty_matrix()
             self._alert = "NORMAL"
+            self._last_seq.clear()
 
     def snapshot(self) -> tuple[Matrix, AlertLevel]:
         """Consistent copy of ``(matrix, alert_level)``."""
