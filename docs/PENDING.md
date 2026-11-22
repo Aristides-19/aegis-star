@@ -1,45 +1,39 @@
 # PENDING
 
-What delivery 2 still needs, taken from the assignment and checked against the
-code. Nothing here changes the detection rule or the contracts in
-[`CONTRACTS.md`](CONTRACTS.md).
+What is left for the final delivery. Nothing here changes the detection rule
+or the contracts in [`CONTRACTS.md`](CONTRACTS.md).
 
 ## How the work is split
 
-Serial, not parallel: **A finishes before B starts.** That removes the merge
-risk on `sensor/main.py` and `ship/server.py`, which both sides would otherwise
-touch at the same time.
+Serial: **A finishes before B starts.** `sensor/main.py` and `ship/server.py`
+appear in both halves, so parallel work would mean two people in one file.
 
-The split is deliberately lopsided. B's three items are the ones that need the
-least judgement: one is wiring that A writes in advance, the other two are
-small additions to files that already have the shape they need. A keeps
-everything that requires a design decision.
+B's three items need the least judgement: one is wiring, the other two add to
+files that already have the shape they need.
 
-| Order | Item | Who | Files |
+| Order | Item | Who | Status |
 |---|---|---|---|
-| 1st | 2. Duplicate suppression | A | `ship/matrix.py` |
-| 2nd | 3. Threat prioritization | A | `ship/server.py`, `ship/config.py` |
-| 3rd | 1. Shared-seed PRNG (library) | A | `common/rng.py` (new), `sensor/world.py`, `start.sh` |
-| 4th | 6. Aliens | A | `ship/detector.py`, `ship/console.py`, `sensor/main.py` |
-| 5th | 1. Shared-seed PRNG (wiring) | B | `sensor/main.py` |
-| 6th | 5. Coverage reporting | B | `ship/registry.py`, `ship/console.py` |
-| 7th | 4. Heartbeats and timeout | B | `sensor/main.py`, `ship/registry.py`, `ship/server.py`, `ship/config.py` |
-| — | 7. Demo video | both | — |
+| 1st | 2. Duplicate suppression | A | **done** |
+| 2nd | 3. Threat prioritization | A | **done** |
+| 3rd | 1. Shared-seed PRNG (library) | A | **done** |
+| 4th | 6. Aliens | A | **done** |
+| 5th | 1. Shared-seed PRNG (wiring) | B | **next** |
+| 6th | 5. Coverage reporting | B | pending |
+| 7th | 4. Heartbeats and timeout | B | pending |
+| — | 7. Demo video | both | pending |
 
-**Why B's items are easy.** A lands `common/rng.py` complete with tests before B
-starts, so B's PRNG work is changing one call in `world.py` and three lines in
-`main.py`. Coverage is a `set` built from state `registry.py` already tracks.
-Heartbeats reuse the tick A introduces for prioritization, so the timer loop
-already exists.
+A's half is done: 68 tests, `basedpyright` clean.
 
-**Why A takes aliens.** It is the only item with no recipe: the assignment says
-sensors may be "controlled by aliens" and stops there. Deciding what counts as
-a lie, and how much of the board one lying node can move, is a judgement call
-and belongs to whoever can make it fastest.
+**B's items.** `common/rng.py` is already written and tested, so the PRNG work
+is a call in `main.py`. Coverage is a `set` over state `registry.py` already
+keeps. Heartbeats reuse the tick that prioritization introduces.
 
-**Dependency chain.** Prioritization introduces the tick; heartbeats expire on
-that same tick; dedup keeps `seq` monotone, which is what makes a seeded replay
-match. So A's three items come first, in that order.
+**Why A takes aliens.** It is the only item with no recipe: "controlled by
+aliens" is as far as the requirement goes. What counts as a lie is a
+judgement call.
+
+**Order.** Prioritization introduces the tick, heartbeats expire on that tick,
+and dedup keeps `seq` monotone so a seeded replay matches.
 
 Sizes: **XS** is minutes, **S** is one sitting, **M** is an afternoon, **L** is a day.
 
@@ -76,7 +70,17 @@ inherits a module that is already proven.
 - `AEGIS_SEED=42 ./start.sh` twice gives the same board at the same tick
 - the seed is visible in the ship header so the video can prove it
 
-**Size:** S. **Owner:** A.
+**Size:** S. **Owner:** A. **Status:** done.
+
+Landed: `common/rng.py` (`stream_for`, `new_seed`), `SEED` and
+`ALIEN_LIE_PROBABILITY` in config, `generate_event(stream=...)`,
+`start.sh` generating one seed and exporting it for all nine processes, and
+the seed shown in the dashboard header so the video can prove it.
+
+`tests/test_rng.py` covers replay, per-sector divergence, independence of
+neighbouring seeds, and that each call starts from the beginning.
+
+The eight sensors do **not** use the seed yet: that is 1b below.
 
 ### 1b. The wiring — B
 
@@ -85,7 +89,11 @@ A hands over `common/rng.py`, `SEED` in config, and `generate_event` taking a
 
 | File | What to do |
 |---|---|
-| `sensor/main.py` | read the seed from the CLI (`--seed`) defaulting to `config.SEED`, call `stream_for(seed, sector)` once before the loop, pass the result into `generate_event` |
+| `sensor/main.py` | add `--seed`. When it is given, or when `config.SEED` is set, build `stream = stream_for(seed, sector)` once before the loop and pass `stream=stream` to `generate_event`. When neither is set, pass nothing and the module-level generator is used |
+| `start.sh` | nothing: it already exports `AEGIS_SEED` to every window |
+
+That is the whole item. The signature is already `generate_event(sector, seq,
+stream=..., force_val=...)`, so nothing else changes.
 
 Three lines. No design decisions left.
 
@@ -122,13 +130,18 @@ but wrong in principle and trivially checkable.
   decide this explicitly (recommendation: reset the counter when the socket for
   that sector closes, see `NodeRegistry`)
 
-**Size:** S. **Owner:** A.
+**Size:** S. **Owner:** A. **Status:** done.
+
+Landed: `ThreatMatrix` tracks `_last_seq` per sector, `apply` returns `False`
+for a stale or repeated `seq` before touching a cell, heartbeats advance the
+sequence without writing, `forget()` clears one sector and `reset()` clears
+all. Nine cases in `tests/test_matrix.py`, including the `seq` 0,1,1,2 walk.
 
 ---
 
 ## 3. Threat prioritization — requirement 3
 
-**What the assignment says, and nothing more.** Two mentions, no definition:
+Two mentions, no definition:
 
 > "El Servidor Central debe procesar los eventos en paralelo, eliminar
 > duplicados, **priorizar amenazas** y ejecutar maniobras de evasión."
@@ -136,14 +149,12 @@ but wrong in principle and trivially checkable.
 > "Resolver condiciones de carrera, duplicación de eventos concurrentes y
 > **priorización de mensajes** en el Servidor Central."
 
-Neither the assignment nor the rubric says what is prioritized, by what
-criterion, or what happens when two events conflict. This item is therefore a
-design decision that has to be written down, not discovered.
+Neither source says what is prioritized or what happens when two events
+conflict, so the ordering is a decision, not a discovery.
 
-**The problem it addresses.** Today every event is applied the moment its
-thread takes the lock. Eight threads racing means the board depends on thread
-scheduling: two sectors reporting in the same millisecond can land in either
-order, and a run is not reproducible even with a fixed seed.
+Without it, every event is applied the moment its thread takes the lock: eight
+threads racing means two reports in the same millisecond land in either order,
+and a run stops being reproducible even with a fixed seed.
 
 **Files to touch:**
 
@@ -153,10 +164,8 @@ order, and a run is not reproducible even with a fixed seed.
 | `ship/config.py` | add `TICK_SECONDS` (start with 0.1) |
 | `ship/matrix.py` | unchanged; it keeps its lock and stays the only mutator |
 
-**Ordering rule to implement:** sort a tick by `(priority, sector, seq)`, where
-`priority` is `1` for `DETECTION` and `0` for `HEARTBEAT`, and `sector` is the
-canonical order from `SECTOR_MAP` so the result is stable. Detections are
-applied before heartbeats, and within detections the sector name breaks ties.
+**Ordering rule:** `(type, cell, seq)` — detections before heartbeats, then
+grid order from `SECTOR_MAP`, then the sector's own sequence.
 
 **Done when:**
 
@@ -165,10 +174,17 @@ applied before heartbeats, and within detections the sector name breaks ties.
   applying them sorted
 - heartbeats never delay a detection within a tick
 - the dashboard still redraws at a readable rate
-- the chosen rule is written in `ARCHITECTURE.md` §10, because it is a
-  judgement call the defence will ask about
+- the rule is recorded in `ARCHITECTURE.md` §10
 
-**Size:** M. **Owner:** A.
+**Size:** M. **Owner:** A. **Status:** done.
+
+Landed: workers push to a `queue.Queue`, one ticker thread drains it every
+`TICK_SECONDS`, sorts by `order_key` and applies the batch, then repaints once.
+`ShipServer.drain()` is callable directly, which is what the tests use.
+`order_key` is exported so tests can assert the ordering itself.
+
+`tests/test_prioritization.py` shuffles the same batch ten ways and asserts the
+board never changes, plus one refresh per tick rather than one per event.
 
 ---
 
@@ -198,7 +214,7 @@ sensor that dies without closing the socket is never marked offline.
 - a sensor killed with `SIGKILL`, socket left open, goes offline within the
   timeout
 - **a sector marked offline keeps its last cell.** Silence is not a zero. This
-  is the current behaviour and must not change.
+  is the current behaviour.
 
 **Size:** M. **Owner:** B.
 
@@ -253,22 +269,32 @@ nothing reports which sectors are uncovered.
 - the dashboard shows the node as suspect
 - honest nodes are unaffected with no alien present
 
-Keep it bounded: the assignment asks the system to survive a lying sensor, not
-to build Byzantine agreement.
+Scope: survive a lying sensor, not reach Byzantine agreement.
 
-**Size:** M. **Owner:** A.
+**Size:** M. **Owner:** A. **Status:** done.
+
+Landed: `ThreatMatrix` records alien-flagged sectors in `_suspect` and never
+writes their cell; `suspect()` exposes the set; `forget()` clears it on
+reconnect. `sensor/main.py` grew `--alien`, which flips the value with
+`ALIEN_LIE_PROBABILITY` and tags the event `origin="alien"`. The dashboard
+marks a suspect node with a magenta `▲` and counts them in the panel title,
+and `ShipServer.drain()` pushes the suspect set alongside the online set.
+
+`tests/test_aliens.py` proves a single captured node cannot raise RED_ALERT,
+that an honest event from a suspect sector still counts, and that the sequence
+still advances so a discarded lie cannot be replaced by a stale replay.
 
 ---
 
 ## 7. Demo video — 25 points
 
-Not code, but the largest single block of the rubric.
+Not code, but the largest single block of the grade.
 
 **Content, in order:**
 
 1. `./start.sh`, ship window showing the board redrawing
 2. switch to a sensor window showing `val=0/1` lines
-3. force the five states from the assignment with
+3. force the five given states with
    `python -m sensor.main <SECTOR> --val 1 --once` and show the banner change
 4. kill one sensor and show it going offline without disturbing the rest
 5. one sentence on the architecture: eight clients, one server, one lock
@@ -282,4 +308,4 @@ Not code, but the largest single block of the rubric.
 - WebSocket dashboard (`ship/hub.py`, `ship/ws_bridge.py`). No rubric line
   mentions a browser. The TUI already satisfies "ejecución y video". Do this
   only if there is time left after the items above.
-- Authentication on the landing. Not in the assignment.
+- Authentication on the landing. Not required.
