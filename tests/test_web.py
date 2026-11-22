@@ -38,7 +38,7 @@ def test_valid_address_is_stored(temp_csv: Path) -> None:
         response = client.post("/register", data={"email": "a@b.com"})
 
     assert response.status_code == 200
-    assert "en la lista" in response.text
+    assert "Registro Confirmado" in response.text
 
     content = rows(temp_csv)
     assert content[0] == ["email", "timestamp"]

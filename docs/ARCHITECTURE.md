@@ -97,21 +97,15 @@ everything after it is a read. That is why one lock is enough.
 
 ## 5. Random generation
 
-The assignment requires a shared-seed PRNG so the environment is
-**distributed and deterministic**: all nodes derive the same meteor sequence
-from the same seed, and a re-run with the same seed replays identically.
+`common/rng.py`. One seed is chosen at launch and passed to every process.
+Each node derives its own stream from `(seed, sector)`, so the eight nodes do
+not report the same value at the same tick, and a re-run with the same seed
+replays identically.
 
-Design (not built yet, entry point `common/rng.py`):
+The stream comes from a digest of `"<seed>:<sector>"` rather than from the raw
+number, so neighbouring seeds do not give neighbouring streams.
 
-- One seed is chosen at launch and passed to every process.
-- Each node derives its own stream: `stream(sector) = PRNG(seed, sector)`.
-  Two nodes with the same seed but different sector names produce different
-  sequences. A node with a different seed produces a different world.
-- Determinism is the debugging feature: a run that raises `RED_ALERT` at
-  `t=4.2` can be replayed exactly.
-
-This is delivery-2 work. Nothing in the delivery-1 code depends on it: sensors
-can use plain `random` today, and the swap is local to `sensor/world.py`.
+Wiring the sensors to it is [`PENDING.md`](PENDING.md) item 1b.
 
 ## 6. Fault model
 
@@ -125,7 +119,8 @@ Three failure modes are in scope, in increasing order of difficulty:
 
 Delivery 1 covers the first partly (the ship tolerates a dropped connection
 because each sensor runs in its own thread) and reserves the field for the
-third. The heartbeat timer is delivery 2.
+third. The heartbeat timer and the alien handling are delivery 2, tracked in
+[`PENDING.md`](PENDING.md) items 2 and 5.
 
 Important: **a dead sensor does not clear its cell.** A `0` from the sensor is
 a real reading; silence is not. Losing `N` means the board keeps whatever `N`
@@ -182,26 +177,31 @@ Split by responsibility layer, not by folder, so neither side blocks the
 other.
 
 **A (me):** `common/`, `ship/detector.py`, `ship/matrix.py`, `ship/config.py`,
-`ship/main.py`, `tools/fake_sensor.py`, `start.sh`, tests for the rule and the
-board. Delivery 2: `ship/hub.py`, `common/rng.py`, alien nodes,
-deduplication.
+`ship/main.py`, `start.sh`, tests for the rule and the board.
 
 **B (partner):** `ship/server.py`, `ship/registry.py`, `sensor/main.py`,
-`sensor/world.py`, tests for the sensor. Delivery 2: `ship/ws_bridge.py`,
-`ui/`, video.
+`sensor/world.py`, tests for the sensor.
+
+For what is left and who owns it, see [`PENDING.md`](PENDING.md).
 
 The handoff point is `CONTRACTS.md`. B can start `server.py` on day one
 because `framing.recv_event()` and `ThreatMatrix.apply()` already exist and
 are tested.
 
-## 10. Decisions worth knowing
+## 10. Decisions
 
 | Decision | Why |
 |---|---|
-| NDJSON instead of length-prefixed frames | readable in a terminal, which is the demo evidence the rubric asks for |
+| NDJSON instead of length-prefixed frames | readable in a terminal, which is what the demo shows |
 | 8-connectivity adjacency | matches what the eye sees on the grid; the statement never defines "adyacente" |
 | `detector` is a pure function | fast unit tests, no sockets or clocks in the rule |
 | one lock, held only for memory writes | no deadlock possible if no I/O happens inside it |
 | `Sequence` for `Matrix` | callers only read; writing is `ThreatMatrix`'s job |
 | `type` and `origin` ship in the protocol now | the JSON never changes shape when delivery 2 adds them |
 | dead sensor does not clear its cell | silence is not a reading |
+| workers enqueue, one ticker applies | otherwise the board depends on which thread wins the lock, and a seeded run stops being reproducible |
+| a tick is ordered by (type, cell, seq) | detections before heartbeats, then grid order, then the sector's own sequence. Nothing defines "priorizar amenazas", so this is our choice; it is the one ordering that keeps a sector's events in order |
+| `seq` tracked per sector, not globally | the eight sensors count independently |
+| an alien event is discarded, not averaged | simpler than estimating intent, and it guarantees one captured node cannot anchor a pair |
+| `forget(sector)` on disconnect | a restarted sensor counts from `seq` 0; without clearing, its first event would be dropped as stale |
+| the PRNG hashes `"<seed>:<sector>"` | a shared `random.seed` would make all eight nodes report the same reading |

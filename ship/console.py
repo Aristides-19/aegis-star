@@ -40,6 +40,14 @@ _ROWS: tuple[tuple[SectorType | None, ...], ...] = tuple(
 _SECTORS: tuple[SectorType, ...] = ("N", "NE", "E", "SE", "S", "SO", "O", "NO")
 
 _ALARM_TITLE = "[bold red]ALERTA[/bold red]"
+
+
+def _nodes_title(online: int, suspect: int) -> str:
+    """Panel title: connected nodes, plus suspects when there are any."""
+    title = f"[bold]sensores[/bold] [dim]{online}/8[/dim]"
+    if suspect:
+        title += f" [bold magenta]{suspect} alien[/bold magenta]"
+    return title
 _SAFE_TITLE = "[bold]matriz[/bold]"
 
 
@@ -50,6 +58,7 @@ class Dashboard:
         self._max_events = max_events
         self._events: list[Text] = []
         self._online: set[SectorType] = set()
+        self._suspect: set[SectorType] = set()
         self._matrix: list[list[int]] = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
         self._alert: AlertLevel = "NORMAL"
         self._values: dict[SectorType, int] = {sector: 0 for sector in SECTOR_MAP}
@@ -82,19 +91,35 @@ class Dashboard:
             self._live = None
 
     # -- updates -----------------------------------------------------------
-    def apply(self, event: SensorEvent, matrix: Matrix, alert: AlertLevel) -> None:
+    def apply(
+        self,
+        event: SensorEvent,
+        matrix: Matrix,
+        alert: AlertLevel,
+        refresh: bool = True,
+    ) -> None:
+        """Record one event. ``refresh=False`` when a caller batches a tick."""
         with _PRINT_LOCK:
             self._values[event.sector] = event.val
             self._matrix = [list(row) for row in matrix]
             self._alert = alert
             self._events.insert(0, _event_line(event, alert))
             del self._events[self._max_events :]
-        self.refresh()
+        if refresh:
+            self.refresh()
 
-    def set_online(self, online: set[SectorType]) -> None:
+    def set_online(self, online: set[SectorType], refresh: bool = True) -> None:
         with _PRINT_LOCK:
             self._online = set(online)
-        self.refresh()
+        if refresh:
+            self.refresh()
+
+    def set_suspect(self, suspect: set[SectorType], refresh: bool = True) -> None:
+        """Sectors that have sent alien-flagged events."""
+        with _PRINT_LOCK:
+            self._suspect = set(suspect)
+        if refresh:
+            self.refresh()
 
     def refresh(self) -> None:
         if self._live is not None:
@@ -108,6 +133,8 @@ class Dashboard:
             Text.assemble(
                 ("AEGIS-STAR", "bold"),
                 (f" :{config.PORT}", "dim"),
+                ("  semilla ", "dim"),
+                (config.SEED or "-", "dim cyan"),
                 ("  t+", "dim"),
                 (f"{(datetime.now() - self._started).total_seconds():.0f}s  ", "dim"),
                 (
@@ -125,9 +152,16 @@ class Dashboard:
         nodes.add_column(justify="right", width=3)
         for sector in _SECTORS:
             online = sector in self._online
+            suspect = sector in self._suspect
+            if suspect:
+                mark = Text("▲", style="bold magenta")
+            elif online:
+                mark = Text("●", style="green")
+            else:
+                mark = Text("○", style="yellow")
             nodes.add_row(
-                Text(sector, style="cyan" if online else "dim"),
-                Text("●" if online else "○", style="green" if online else "yellow"),
+                Text(sector, style="magenta" if suspect else "cyan" if online else "dim"),
+                mark,
                 Text("1", style="bold red")
                 if self._values[sector] == 1
                 else Text("0", style="dim"),

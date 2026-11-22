@@ -15,7 +15,6 @@ from typing import Annotated
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr, ValidationError
 
@@ -27,7 +26,6 @@ CSV_HEADER = ("email", "timestamp")
 _CSV_LOCK = threading.Lock()
 
 app = FastAPI(title="Aegis-Star 8-Sector")
-app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 templates = Jinja2Templates(directory=ROOT / "templates")
 
 
@@ -81,7 +79,9 @@ def thanks(request: Request) -> Response:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("web.main:app", host="127.0.0.1", port=8080, reload=True)
+    # Pass the object, not "web.main:app": the file has to run both here and
+    # as a bare main.py in the delivery, where the module has no package.
+    uvicorn.run(app, host="127.0.0.1", port=8080)
 
 
 __all__ = ["app"]
