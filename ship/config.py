@@ -35,6 +35,9 @@ DETECTION_PROBABILITY: float = float(os.getenv("AEGIS_DETECTION_PROBABILITY", "0
 #: Seconds between two applications of the event queue.
 TICK_SECONDS: float = float(os.getenv("AEGIS_TICK_SECONDS", "0.1"))
 
+#: Chance that an ``--alien`` sensor reports a false value.
+ALIEN_LIE_PROBABILITY: float = float(os.getenv("AEGIS_ALIEN_LIE_PROBABILITY", "0.3"))
+
 #: Seconds a sensor waits before retrying a failed connection.
 RECONNECT_DELAY: float = float(os.getenv("AEGIS_RECONNECT_DELAY", "1.0"))
 
@@ -43,6 +46,7 @@ SECTOR_ORDER: tuple[str, ...] = ("NO", "N", "NE", "E", "SE", "S", "SO", "O")
 
 __all__ = [
     "ACCEPT_POLL_SECONDS",
+    "ALIEN_LIE_PROBABILITY",
     "DETECTION_PROBABILITY",
     "LISTEN_BACKLOG",
     "PORT",

@@ -141,6 +141,7 @@ class ShipServer:
         for event in batch:
             self.dashboard.apply(event, board, alert, refresh=False)
         self.dashboard.set_online(self.registry.online(), refresh=False)
+        self.dashboard.set_suspect(self.matrix.suspect(), refresh=False)
         self.dashboard.refresh()
 
         with self._applied_lock:
@@ -175,6 +176,8 @@ class ShipServer:
         finally:
             if assigned_sector is not None:
                 self.registry.unregister(assigned_sector)
+                # A sensor that reconnects restarts its counter at zero.
+                self.matrix.forget(assigned_sector)
                 self.dashboard.set_online(self.registry.online())
             sock.close()
 
