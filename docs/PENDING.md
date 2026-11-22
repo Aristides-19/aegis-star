@@ -10,24 +10,38 @@ Serial, not parallel: **A finishes before B starts.** That removes the merge
 risk on `sensor/main.py` and `ship/server.py`, which both sides would otherwise
 touch at the same time.
 
+The split is deliberately lopsided. B's three items are the ones that need the
+least judgement: one is wiring that A writes in advance, the other two are
+small additions to files that already have the shape they need. A keeps
+everything that requires a design decision.
+
 | Order | Item | Who | Files |
 |---|---|---|---|
-| 1st | 1. Shared-seed PRNG | A | `common/rng.py` (new), `sensor/world.py`, `ship/config.py`, `start.sh` |
-| 2nd | 2. Duplicate suppression | A | `ship/matrix.py`, `ship/server.py` |
-| 3rd | 3. Threat prioritization | A | `ship/server.py` |
-| 4th | 4. Heartbeats and timeout | B | `sensor/main.py`, `ship/registry.py`, `ship/server.py`, `ship/config.py` |
-| 5th | 5. Coverage reporting | B | `ship/registry.py`, `ship/console.py` |
-| 6th | 6. Aliens | B | `sensor/main.py`, `ship/detector.py`, `ship/console.py` |
+| 1st | 2. Duplicate suppression | A | `ship/matrix.py` |
+| 2nd | 3. Threat prioritization | A | `ship/server.py`, `ship/config.py` |
+| 3rd | 1. Shared-seed PRNG (library) | A | `common/rng.py` (new), `sensor/world.py`, `start.sh` |
+| 4th | 6. Aliens | A | `ship/detector.py`, `ship/console.py`, `sensor/main.py` |
+| 5th | 1. Shared-seed PRNG (wiring) | B | `sensor/main.py` |
+| 6th | 5. Coverage reporting | B | `ship/registry.py`, `ship/console.py` |
+| 7th | 4. Heartbeats and timeout | B | `sensor/main.py`, `ship/registry.py`, `ship/server.py`, `ship/config.py` |
 | — | 7. Demo video | both | — |
 
-A takes the harder half on purpose: PRNG and prioritization are the two items
-where the assignment leaves room for interpretation, and they should be settled
-before B builds on top of them.
+**Why B's items are easy.** A lands `common/rng.py` complete with tests before B
+starts, so B's PRNG work is changing one call in `world.py` and three lines in
+`main.py`. Coverage is a `set` built from state `registry.py` already tracks.
+Heartbeats reuse the tick A introduces for prioritization, so the timer loop
+already exists.
 
-A runs first also means A owns `ship/server.py` while it is being restructured.
-B touches it once, for the heartbeat timeout, long after.
+**Why A takes aliens.** It is the only item with no recipe: the assignment says
+sensors may be "controlled by aliens" and stops there. Deciding what counts as
+a lie, and how much of the board one lying node can move, is a judgement call
+and belongs to whoever can make it fastest.
 
-Sizes: **S** is one sitting, **M** is an afternoon, **L** is a day.
+**Dependency chain.** Prioritization introduces the tick; heartbeats expire on
+that same tick; dedup keeps `seq` monotone, which is what makes a seeded replay
+match. So A's three items come first, in that order.
+
+Sizes: **XS** is minutes, **S** is one sitting, **M** is an afternoon, **L** is a day.
 
 ---
 
@@ -40,15 +54,19 @@ Sizes: **S** is one sitting, **M** is an afternoon, **L** is a day.
 `random.random()` with no seed, so two runs of the same scenario are unrelated
 and no run can be replayed.
 
-**Files to touch:**
+This item has two halves, done by different people.
+
+### 1a. The library — A
 
 | File | What to do |
 |---|---|
 | `common/rng.py` | new. `stream_for(seed, sector) -> Random` via `hashlib.blake2b(f"{seed}:{sector}")` narrowed to 8 bytes, fed into `random.Random(int)`. Same seed and sector always give the same stream. |
 | `ship/config.py` | add `SEED` read from `AEGIS_SEED`; when unset, draw one at startup and keep it in the process |
-| `sensor/world.py` | take a `random.Random` instead of calling module-level `random`; the rest of the function does not change |
-| `sensor/main.py` | read the seed from the CLI, default to `AEGIS_SEED`, build the stream once before the loop |
+| `sensor/world.py` | take a `random.Random` parameter instead of calling module-level `random`; the rest of the function does not change |
 | `start.sh` | generate one seed, export it for every window, print it so the recording shows it |
+
+A also lands `tests/test_rng.py` covering the three invariants below, so B
+inherits a module that is already proven.
 
 **Done when:**
 
@@ -59,6 +77,22 @@ and no run can be replayed.
 - the seed is visible in the ship header so the video can prove it
 
 **Size:** S. **Owner:** A.
+
+### 1b. The wiring — B
+
+A hands over `common/rng.py`, `SEED` in config, and `generate_event` taking a
+`Random`. B only connects `sensor/main.py` to it.
+
+| File | What to do |
+|---|---|
+| `sensor/main.py` | read the seed from the CLI (`--seed`) defaulting to `config.SEED`, call `stream_for(seed, sector)` once before the loop, pass the result into `generate_event` |
+
+Three lines. No design decisions left.
+
+**Done when:** `python -m sensor.main N --seed 42` emits the same sequence on
+every run, and two sectors under the same seed differ.
+
+**Size:** XS. **Owner:** B.
 
 ---
 
@@ -207,7 +241,7 @@ nothing reports which sectors are uncovered.
 
 | File | What to do |
 |---|---|
-| `sensor/main.py` | `--alien` flag; with it the sensor occasionally reports a value its own world did not produce, and sets `origin="alien"` on those |
+| `sensor/main.py` | `--alien` flag; with it the sensor occasionally reports a value its own world did not produce, and sets `origin="alien"` on those. A writes this too, since it pairs with the detector side. |
 | `ship/detector.py` | ignore or down-weight sectors whose events arrived with `origin="alien"`; a single alien sector must not raise RED_ALERT alone |
 | `ship/console.py` | mark the node as suspect rather than hiding it |
 
@@ -222,7 +256,7 @@ nothing reports which sectors are uncovered.
 Keep it bounded: the assignment asks the system to survive a lying sensor, not
 to build Byzantine agreement.
 
-**Size:** M. **Owner:** B.
+**Size:** M. **Owner:** A.
 
 ---
 
