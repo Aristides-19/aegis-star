@@ -17,14 +17,14 @@ def generate_event(
     sector: SectorType,
     seq: int,
     stream: random.Random | None = None,
-    force_val: Literal[0, 1] | None = None,
+    force_val: DetectionVal | None = None,
 ) -> SensorEvent:
     """Build one event.
 
     ``stream`` is the sector's PRNG from :func:`common.rng.stream_for`; without
     it a shared module-level generator is used. ``force_val`` skips the draw.
     """
-    val: Literal[0, 1]
+    val: DetectionVal
     if force_val is not None:
         val = force_val
     else:
