@@ -82,19 +82,28 @@ class Dashboard:
             self._live = None
 
     # -- updates -----------------------------------------------------------
-    def apply(self, event: SensorEvent, matrix: Matrix, alert: AlertLevel) -> None:
+    def apply(
+        self,
+        event: SensorEvent,
+        matrix: Matrix,
+        alert: AlertLevel,
+        refresh: bool = True,
+    ) -> None:
+        """Record one event. ``refresh=False`` when a caller batches a tick."""
         with _PRINT_LOCK:
             self._values[event.sector] = event.val
             self._matrix = [list(row) for row in matrix]
             self._alert = alert
             self._events.insert(0, _event_line(event, alert))
             del self._events[self._max_events :]
-        self.refresh()
+        if refresh:
+            self.refresh()
 
-    def set_online(self, online: set[SectorType]) -> None:
+    def set_online(self, online: set[SectorType], refresh: bool = True) -> None:
         with _PRINT_LOCK:
             self._online = set(online)
-        self.refresh()
+        if refresh:
+            self.refresh()
 
     def refresh(self) -> None:
         if self._live is not None:

@@ -20,11 +20,17 @@ PORT: int = int(os.getenv("AEGIS_PORT", "5000"))
 #: Backlog passed to listen().
 LISTEN_BACKLOG: int = 8
 
+#: How often the accept loop wakes to re-check ``running``.
+ACCEPT_POLL_SECONDS: float = 0.2
+
 #: Seconds a sensor waits between two reports.
 SENSOR_INTERVAL: float = float(os.getenv("AEGIS_SENSOR_INTERVAL", "2.0"))
 
 #: Probability that a generated reading is a detection (1).
 DETECTION_PROBABILITY: float = float(os.getenv("AEGIS_DETECTION_PROBABILITY", "0.2"))
+
+#: Seconds between two applications of the event queue.
+TICK_SECONDS: float = float(os.getenv("AEGIS_TICK_SECONDS", "0.1"))
 
 #: Seconds a sensor waits before retrying a failed connection.
 RECONNECT_DELAY: float = float(os.getenv("AEGIS_RECONNECT_DELAY", "1.0"))
@@ -33,6 +39,7 @@ RECONNECT_DELAY: float = float(os.getenv("AEGIS_RECONNECT_DELAY", "1.0"))
 SECTOR_ORDER: tuple[str, ...] = ("NO", "N", "NE", "E", "SE", "S", "SO", "O")
 
 __all__ = [
+    "ACCEPT_POLL_SECONDS",
     "DETECTION_PROBABILITY",
     "LISTEN_BACKLOG",
     "PORT",
@@ -41,4 +48,5 @@ __all__ = [
     "SENSOR_HOST",
     "SENSOR_INTERVAL",
     "SHIP_HOST",
+    "TICK_SECONDS",
 ]
