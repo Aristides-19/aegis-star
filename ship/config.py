@@ -23,6 +23,9 @@ LISTEN_BACKLOG: int = 8
 #: How often the accept loop wakes to re-check ``running``.
 ACCEPT_POLL_SECONDS: float = 0.2
 
+#: Shared PRNG seed. Empty means the ship picks one at startup.
+SEED: str = os.getenv("AEGIS_SEED", "")
+
 #: Seconds a sensor waits between two reports.
 SENSOR_INTERVAL: float = float(os.getenv("AEGIS_SENSOR_INTERVAL", "2.0"))
 
@@ -45,6 +48,7 @@ __all__ = [
     "PORT",
     "RECONNECT_DELAY",
     "SECTOR_ORDER",
+    "SEED",
     "SENSOR_HOST",
     "SENSOR_INTERVAL",
     "SHIP_HOST",

@@ -16,14 +16,20 @@ DetectionVal = Literal[0, 1]
 def generate_event(
     sector: SectorType,
     seq: int,
+    stream: random.Random | None = None,
     force_val: DetectionVal | None = None,
 ) -> SensorEvent:
-    """Build one event. ``force_val`` bypasses the random draw on purpose."""
+    """Build one event.
+
+    ``stream`` is the sector's PRNG from :func:`common.rng.stream_for`; without
+    it a shared module-level generator is used. ``force_val`` skips the draw.
+    """
     val: DetectionVal
     if force_val is not None:
         val = force_val
     else:
-        val = 1 if random.random() < config.DETECTION_PROBABILITY else 0
+        draw = (stream or random).random()
+        val = 1 if draw < config.DETECTION_PROBABILITY else 0
 
     return SensorEvent(
         type="DETECTION",

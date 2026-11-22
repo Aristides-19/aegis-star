@@ -117,6 +117,8 @@ class Dashboard:
             Text.assemble(
                 ("AEGIS-STAR", "bold"),
                 (f" :{config.PORT}", "dim"),
+                ("  semilla ", "dim"),
+                (config.SEED or "-", "dim cyan"),
                 ("  t+", "dim"),
                 (f"{(datetime.now() - self._started).total_seconds():.0f}s  ", "dim"),
                 (

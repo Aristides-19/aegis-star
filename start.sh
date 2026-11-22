@@ -6,7 +6,12 @@
 #   ./start.sh --plain    no tmux: ship in this terminal, sensors in background
 #
 # Environment (all optional, see ship/config.py):
-#   AEGIS_PORT=6000 AEGIS_SENSOR_INTERVAL=0.5 AEGIS_DETECTION_PROBABILITY=0.1
+#   AEGIS_SEED=42 AEGIS_PORT=6000 AEGIS_SENSOR_INTERVAL=0.5 \
+#   AEGIS_DETECTION_PROBABILITY=0.1
+#
+# The PRNG seed is one value shared by all nine processes. Leave AEGIS_SEED
+# unset to get a fresh one per run; the script prints it, and every window
+# inherits it, so a run can be replayed by exporting the printed value.
 
 set -euo pipefail
 
@@ -36,6 +41,12 @@ kill_everything() {
   pkill -f "[s]ensor\.main" 2>/dev/null || true
 }
 
+# One seed for the whole run: eight sensors and the ship all read AEGIS_SEED.
+if [[ -z "${AEGIS_SEED:-}" ]]; then
+  AEGIS_SEED="$("$PYTHON" -c 'from common.rng import new_seed; print(new_seed())')"
+fi
+export AEGIS_SEED
+
 MODE="tmux"
 case "${1:-}" in
   -k|--kill)
@@ -50,6 +61,7 @@ esac
 
 # ---------------------------------------------------------------- plain mode
 if [[ "$MODE" == "plain" ]]; then
+  echo "Semilla PRNG: $AEGIS_SEED"
   echo "Modo sin tmux: la nave corre aquí, los sensores en segundo plano."
   echo "Detener todo con Ctrl+C."
   echo
@@ -115,6 +127,7 @@ done
 tmux select-window -t "$SESSION:ship"
 tmux set-option -t "$SESSION" remain-on-exit on
 
+echo "Semilla PRNG: $AEGIS_SEED  (repetir: AEGIS_SEED=$AEGIS_SEED ./start.sh)"
 echo "Sesión '$SESSION' lista."
 echo "  Nave:     ventana 'ship'"
 echo "  Sensores: ventanas 'sensor-NO' ... 'sensor-O'"
