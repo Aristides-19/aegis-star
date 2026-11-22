@@ -48,14 +48,13 @@
 <body class="bg-spaceBg text-slate-200 font-sans min-h-screen flex flex-col justify-between selection:bg-accentCyan selection:text-black">
 
   <!-- BARRA DE NAVEGACIÓN -->
-  <header class="border-b border-spaceBorder bg-spaceBg/90 backdrop-blur sticky top-0 z-50 px-4 sm:px-6 py-4">
+  <header class="border-b border-spaceBorder bg-spaceBg sticky top-0 z-50 px-4 sm:px-6 py-4">
     <div class="max-w-6xl mx-auto flex items-center justify-between gap-2">
       
-      <!-- Título de la marca con ícono de radar animado -->
+      <!-- Título de la marca con ícono de radar -->
       <div class="flex items-center space-x-3">
-        <div class="relative flex items-center justify-center w-8 h-8 rounded-lg bg-accentCyan/10 border border-accentCyan/30 text-accentCyan flex-shrink-0">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-lg bg-accentCyan opacity-25"></span>
-          <svg class="w-4 h-4 text-accentCyan relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="flex items-center justify-center w-8 h-8 rounded-sm bg-accentCyan/10 border border-accentCyan/30 text-accentCyan flex-shrink-0">
+          <svg class="w-4 h-4 text-accentCyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="9" stroke-width="2"></circle>
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v18m9-9H3"></path>
             <circle cx="12" cy="12" r="2.5" fill="currentColor"></circle>
@@ -67,7 +66,7 @@
         </span>
       </div>
 
-      <a href="#registro" class="text-xs font-mono px-3 sm:px-4 py-2 bg-accentCyan hover:bg-spaceBorder hover:text-accentCyan border border-spaceBorder text-slate-950 rounded-lg transition-all duration-300 whitespace-nowrap">
+      <a href="#registro" class="text-xs font-mono px-3 sm:px-4 py-2 bg-accentCyan hover:bg-spaceBorder hover:text-accentCyan border border-spaceBorder text-slate-950 rounded-sm transition-all duration-300 whitespace-nowrap">
         UNIRSE AL DESPLIEGUE
       </a>
     </div>
@@ -89,32 +88,35 @@
     </section>
 
     <!-- CAPACIDADES VISUALES Y MATRIZ 3x3 -->
-    <section class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center bg-spacePanel/50 border border-spaceBorder p-8 rounded-2xl">
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center bg-spacePanel/50 border border-spaceBorder p-8 rounded">
       <div class="space-y-4">
-        <h2 class="text-2xl font-bold text-white flex items-center gap-2 [text-shadow:0_0_6px_rgba(255,255,255,0.4),0_0_12px_rgba(255,255,255,0.2)]">
+        <h2 class="text-2xl font-bold text-white flex items-center gap-2">
           Matriz de Amenazas 3×3
         </h2>
         <p class="text-sm text-slate-400 leading-relaxed">
-          Cada celda periférica representa un nodo de detección direccional. El sistema procesa eventos concurrentes eliminando duplicados y clasificando trayectorias al instante:
+          Cada celda periférica representa un nodo de detección direccional. El sistema procesa los eventos de los ocho nodos y clasifica la trayectoria en cada trama:
         </p>
         <ul class="space-y-2 text-sm">
           <li class="flex items-start gap-2">
-            <span class="text-alertRed font-bold font-mono"><span class="whitespace-nowrap">● ALERTA</span> ROJA:</span> 
+            <span class="text-alertRed font-bold font-mono whitespace-nowrap">● ALERTA:</span> 
             <span class="text-slate-300">Un 1 aislado representa una ruta de colisión directa inminente.</span>
           </li>
           <li class="flex items-start gap-2">
             <span class="text-emerald-400 font-bold font-mono whitespace-nowrap">● NORMAL:</span> 
-            <span class="text-slate-300">Dos o más 1s consecutivos y adyacentes confirman un tránsito tangencial seguro.</span>
+            <span class="text-slate-300">Todos los 1 tienen al menos un vecino con 1, aunque formen grupos separados: tránsito tangencial seguro.</span>
           </li>
         </ul>
+        <p class="text-xs text-slate-500 font-mono leading-relaxed pt-1">
+          N y NO → NORMAL · NO y SE → ALERTA
+        </p>
       </div>
 
       <!-- Representación visual de la Rejilla del Radar -->
-      <div class="bg-spaceBg border border-spaceBorder p-6 rounded-xl flex flex-col items-center">
+      <div class="bg-spaceBg border border-spaceBorder p-6 rounded flex flex-col items-center">
         <div class="text-xs font-mono text-slate-500 mb-4 tracking-widest uppercase">Grid de Cobertura Direccional</div>
         <div class="grid grid-cols-3 gap-3 w-64 text-center font-mono">
           <div class="bg-spacePanel border border-spaceBorder/80 p-3 rounded text-xs text-slate-300">NO</div>
-          <div class="bg-spacePanel border border-accentCyan/50 text-accentCyan p-3 rounded text-xs font-bold shadow-lg shadow-accentCyan/10">N</div>
+          <div class="bg-spacePanel border border-spaceBorder/80 p-3 rounded text-xs text-slate-300">N</div>
           <div class="bg-spacePanel border border-spaceBorder/80 p-3 rounded text-xs text-slate-300">NE</div>
           
           <div class="bg-spacePanel border border-spaceBorder/80 p-3 rounded text-xs text-slate-300">O</div>
@@ -132,9 +134,9 @@
     <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
       
       <!-- Topología en Estrella -->
-      <div class="bg-spacePanel/30 border border-spaceBorder p-6 rounded-xl space-y-3">
+      <div class="bg-spacePanel/30 border border-spaceBorder p-6 rounded space-y-3">
         <div class="flex items-center gap-3.5">
-          <div class="w-10 h-10 rounded-lg bg-accentCyan/10 border border-accentCyan/20 flex items-center justify-center text-accentCyan flex-shrink-0">
+          <div class="w-10 h-10 rounded-sm bg-accentCyan/10 border border-accentCyan/20 flex items-center justify-center text-accentCyan flex-shrink-0">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="3" stroke-width="2"></circle>
               <circle cx="4" cy="6" r="2" stroke-width="2"></circle>
@@ -152,9 +154,9 @@
       </div>
 
       <!-- Tolerancia a Fallos -->
-      <div class="bg-spacePanel/30 border border-spaceBorder p-6 rounded-xl space-y-3">
+      <div class="bg-spacePanel/30 border border-spaceBorder p-6 rounded space-y-3">
         <div class="flex items-center gap-3.5">
-          <div class="w-10 h-10 rounded-lg bg-accentCyan/10 border border-accentCyan/20 flex items-center justify-center text-accentCyan flex-shrink-0">
+          <div class="w-10 h-10 rounded-sm bg-accentCyan/10 border border-accentCyan/20 flex items-center justify-center text-accentCyan flex-shrink-0">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
             </svg>
@@ -167,9 +169,9 @@
       </div>
 
       <!-- Concurrencia Segura -->
-      <div class="bg-spacePanel/30 border border-spaceBorder p-6 rounded-xl space-y-3">
+      <div class="bg-spacePanel/30 border border-spaceBorder p-6 rounded space-y-3">
         <div class="flex items-center gap-3.5">
-          <div class="w-10 h-10 rounded-lg bg-accentCyan/10 border border-accentCyan/20 flex items-center justify-center text-accentCyan flex-shrink-0">
+          <div class="w-10 h-10 rounded-sm bg-accentCyan/10 border border-accentCyan/20 flex items-center justify-center text-accentCyan flex-shrink-0">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" stroke-width="2"></rect>
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11V7a5 5 0 0110 0v4"></path>
@@ -186,11 +188,8 @@
     <!-- FORMULARIO DE REGISTRO / CTA -->
     <div id="registro" class="relative max-w-xl mx-auto">
       
-      <!-- Efecto de resplandor gradiente detrás del panel -->
-      <div class="absolute -inset-0.5 bg-gradient-to-r from-accentCyan via-sky-500 to-indigo-600 rounded-2xl blur opacity-30"></div>
-      
       <!-- Panel de registro -->
-      <section class="relative bg-spacePanel border border-spaceBorder p-8 rounded-2xl text-center space-y-6 shadow-2xl">
+      <section class="bg-spacePanel border border-spaceBorder p-8 rounded text-center space-y-6">
         <div class="space-y-2">
           <h2 class="text-2xl font-bold text-white tracking-wide">Recibir Notificaciones de Despliegue</h2>
           <p class="text-sm text-slate-400">
@@ -209,7 +208,7 @@
               required 
               placeholder="oficial@unimet.edu.ve" 
               autocomplete="email"
-              class="w-full bg-spaceBg border border-spaceBorder focus:border-accentCyan focus:ring-1 focus:ring-accentCyan text-white px-4 py-3 rounded-lg text-sm outline-none transition-all"
+              class="w-full bg-spaceBg border border-spaceBorder focus:border-accentCyan focus:ring-1 focus:ring-accentCyan text-white px-4 py-3 rounded-sm text-sm outline-none transition-all"
             >
           </div>
 
@@ -217,7 +216,7 @@
           <button 
             type="submit" 
             id="cta-button"
-            class="relative overflow-hidden w-full bg-accentCyan hover:bg-sky-400 text-slate-950 font-bold py-3.5 rounded-lg text-sm tracking-wide transition-colors duration-300 cursor-pointer shadow-lg shadow-accentCyan/20"
+            class="relative overflow-hidden w-full bg-accentCyan hover:bg-sky-400 text-slate-950 font-bold py-3.5 rounded-sm text-sm tracking-wide transition-colors duration-300 cursor-pointer"
           >
             <span class="relative z-10 pointer-events-none">NOTIFÍCAME DEL DESPLIEGUE</span>
           </button>
@@ -225,7 +224,7 @@
 
         <!-- Mensaje de error renderizado por Jinja2 si falla Pydantic -->
         {% if message %}
-        <div role="alert" class="p-3 bg-alertRed/10 border border-alertRed/30 text-alertRed text-xs rounded-lg font-mono">
+        <div role="alert" class="p-3 bg-alertRed/10 border border-alertRed/30 text-alertRed text-xs rounded-sm font-mono">
           {{ message }}
         </div>
         {% endif %}
