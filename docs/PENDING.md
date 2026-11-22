@@ -1,144 +1,232 @@
 # PENDING
 
 What delivery 2 still needs, taken from the assignment and checked against the
-code. Each item says what is missing, where it goes, and how to tell it is
-done. Nothing here changes the detection rule or the contracts in
+code. Nothing here changes the detection rule or the contracts in
 [`CONTRACTS.md`](CONTRACTS.md).
 
-Sizes: **S** is one sitting, **M** is an afternoon, **L** is a day or more.
+## How the work is split
+
+Serial, not parallel: **A finishes before B starts.** That removes the merge
+risk on `sensor/main.py` and `ship/server.py`, which both sides would otherwise
+touch at the same time.
+
+| Order | Item | Who | Files |
+|---|---|---|---|
+| 1st | 1. Shared-seed PRNG | A | `common/rng.py` (new), `sensor/world.py`, `ship/config.py`, `start.sh` |
+| 2nd | 2. Duplicate suppression | A | `ship/matrix.py`, `ship/server.py` |
+| 3rd | 3. Threat prioritization | A | `ship/server.py` |
+| 4th | 4. Heartbeats and timeout | B | `sensor/main.py`, `ship/registry.py`, `ship/server.py`, `ship/config.py` |
+| 5th | 5. Coverage reporting | B | `ship/registry.py`, `ship/console.py` |
+| 6th | 6. Aliens | B | `sensor/main.py`, `ship/detector.py`, `ship/console.py` |
+| — | 7. Demo video | both | — |
+
+A takes the harder half on purpose: PRNG and prioritization are the two items
+where the assignment leaves room for interpretation, and they should be settled
+before B builds on top of them.
+
+A runs first also means A owns `ship/server.py` while it is being restructured.
+B touches it once, for the heartbeat timeout, long after.
+
+Sizes: **S** is one sitting, **M** is an afternoon, **L** is a day.
 
 ---
 
 ## 1. Shared-seed PRNG — requirement 2
 
+> "Aplicar el algoritmo de número pseudoaleatorio (PRNG con Semilla
+> Compartida) para la generación distribuida y determinista del entorno."
+
 **Missing.** `common/rng.py` does not exist. `sensor/world.py` calls
 `random.random()` with no seed, so two runs of the same scenario are unrelated
 and no run can be replayed.
 
-**Where:** new `common/rng.py`, used by `sensor/world.py`.
+**Files to touch:**
+
+| File | What to do |
+|---|---|
+| `common/rng.py` | new. `stream_for(seed, sector) -> Random` via `hashlib.blake2b(f"{seed}:{sector}")` narrowed to 8 bytes, fed into `random.Random(int)`. Same seed and sector always give the same stream. |
+| `ship/config.py` | add `SEED` read from `AEGIS_SEED`; when unset, draw one at startup and keep it in the process |
+| `sensor/world.py` | take a `random.Random` instead of calling module-level `random`; the rest of the function does not change |
+| `sensor/main.py` | read the seed from the CLI, default to `AEGIS_SEED`, build the stream once before the loop |
+| `start.sh` | generate one seed, export it for every window, print it so the recording shows it |
 
 **Done when:**
 
-- one seed is read at launch (`AEGIS_SEED`, defaulting to a random one that is
-  printed once) and passed to every process by `start.sh`
-- each node derives its own stream from `(seed, sector)`, so the eight nodes
-  do not emit the same sequence
-- the same seed produces byte-identical event sequences on a re-run
-- `SENSOR_INTERVAL` and `DETECTION_PROBABILITY` stay as they are
+- the same seed replays an identical event sequence, checked by a test
+- two sectors with the same seed produce different sequences
+- a different seed produces a different sequence
+- `AEGIS_SEED=42 ./start.sh` twice gives the same board at the same tick
+- the seed is visible in the ship header so the video can prove it
 
 **Size:** S. **Owner:** A.
 
 ---
 
-## 2. Heartbeats and inactivity timeout — requirement 4
+## 2. Duplicate suppression — requirement 3
 
-**Missing.** `SensorEvent` carries `type: "HEARTBEAT"` and `ThreatMatrix.apply`
-already ignores it (a heartbeat never writes a cell), but **no sensor emits
-one**, and the ship has no timer. A sensor that dies without closing the socket
-is never marked offline.
-
-**Where:** `sensor/main.py` (emit), `ship/registry.py` + `ship/server.py`
-(expire), `ship/config.py` (interval).
-
-**Done when:**
-
-- a sensor sends `HEARTBEAT` every `HEARTBEAT_INTERVAL` seconds, including
-  while it has nothing to report
-- the ship records `last_seen` per sector and marks a sector offline once
-  `2 x HEARTBEAT_INTERVAL` passes with no message of any kind
-- a heartbeated sensor shows online again without a reconnect
-- a sensor killed with `SIGKILL` (socket left open) goes offline within the
-  timeout
-- **a sector marked offline keeps its last cell.** Silence is not a zero.
-  This is already the behaviour and must not change.
-
-**Size:** M. **Owner:** B.
-
----
-
-## 3. Duplicate suppression — requirement 3
+> "Resolver condiciones de carrera, duplicación de eventos concurrentes y
+> priorización de mensajes en el Servidor Central."
 
 **Missing.** `SensorEvent.seq` is on the wire and unused. A retransmitted or
-duplicated event is applied twice.
+duplicated event is applied twice, which is harmless with today's binary cells
+but wrong in principle and trivially checkable.
 
-**Where:** `ship/matrix.py` (track last `seq` per sector) or a small filter in
-`ship/server.py`.
+**Files to touch:**
+
+| File | What to do |
+|---|---|
+| `ship/matrix.py` | keep `_last_seq: dict[SectorType, int]`; `apply()` returns `False` when `seq <= _last_seq[sector]`, before touching the board. `reset()` clears it. |
+| `ship/server.py` | already ignores the return value; nothing to change unless a counter is wanted |
 
 **Done when:**
 
-- an event whose `seq` is `<=` the last one seen for that sector is dropped
-  before it reaches the matrix
-- the drop is silent and does not count as an error
-- a test feeds `seq` 0, 1, 1, 2 and asserts the board only reflects 0, 1, 2
+- an event whose `seq` is `<=` the last one seen for that sector never reaches
+  the board
+- the drop is silent: no exception, no log line per event
+- a test feeds `seq` 0, 1, 1, 2 and asserts the board reflects only 0, 1, 2
+- a sector that reconnects and restarts at `seq` 0 is not silently frozen;
+  decide this explicitly (recommendation: reset the counter when the socket for
+  that sector closes, see `NodeRegistry`)
 
 **Size:** S. **Owner:** A.
 
 ---
 
-## 4. Threat prioritization — requirement 3
+## 3. Threat prioritization — requirement 3
 
-**Missing.** Every event is applied immediately in arrival order. Two
-detections arriving at the same moment are handled in whatever order the
-threads happen to run.
+**What the assignment says, and nothing more.** Two mentions, no definition:
 
-**Where:** `ship/server.py` (batch per tick), `ship/matrix.py` unchanged.
+> "El Servidor Central debe procesar los eventos en paralelo, eliminar
+> duplicados, **priorizar amenazas** y ejecutar maniobras de evasión."
+
+> "Resolver condiciones de carrera, duplicación de eventos concurrentes y
+> **priorización de mensajes** en el Servidor Central."
+
+Neither the assignment nor the rubric says what is prioritized, by what
+criterion, or what happens when two events conflict. This item is therefore a
+design decision that has to be written down, not discovered.
+
+**The problem it addresses.** Today every event is applied the moment its
+thread takes the lock. Eight threads racing means the board depends on thread
+scheduling: two sectors reporting in the same millisecond can land in either
+order, and a run is not reproducible even with a fixed seed.
+
+**Files to touch:**
+
+| File | What to do |
+|---|---|
+| `ship/server.py` | workers enqueue events instead of applying them; one ticker thread drains the queue every `TICK_SECONDS`, sorts the batch deterministically, applies it, then asks the dashboard to redraw |
+| `ship/config.py` | add `TICK_SECONDS` (start with 0.1) |
+| `ship/matrix.py` | unchanged; it keeps its lock and stays the only mutator |
+
+**Ordering rule to implement:** sort a tick by `(priority, sector, seq)`, where
+`priority` is `1` for `DETECTION` and `0` for `HEARTBEAT`, and `sector` is the
+canonical order from `SECTOR_MAP` so the result is stable. Detections are
+applied before heartbeats, and within detections the sector name breaks ties.
 
 **Done when:**
 
-- the ship applies events in a deterministic order within a tick, so the board
-  does not depend on thread scheduling
-- if two events for the same sector arrive in one tick, the higher `seq` wins
 - the board for a given set of events is identical across repeated runs
-
-This is the weakest requirement in the assignment: "priorizar amenazas" is
-never defined beyond ordering. Document the choice made here.
+- a burst of 80 events applied through the queue gives the same board as
+  applying them sorted
+- heartbeats never delay a detection within a tick
+- the dashboard still redraws at a readable rate
+- the chosen rule is written in `ARCHITECTURE.md` §10, because it is a
+  judgement call the defence will ask about
 
 **Size:** M. **Owner:** A.
 
 ---
 
-## 5. Aliens — requirement 5
+## 4. Heartbeats and inactivity timeout — requirement 4
 
-**Missing.** `origin: "alien"` is on the wire and the ship ignores it.
-`grep origin ship/` returns nothing.
+> "Garantizar tolerancia a fallas mediante detección de desconexiones
+> (heartbeats) y reconfiguración dinámica de cobertura."
 
-**Where:** `sensor/main.py` (`--alien` flag), `ship/detector.py` or
-`ship/matrix.py` (discount), `ship/console.py` (show it).
+**Missing.** `SensorEvent` carries `type: "HEARTBEAT"` and `ThreatMatrix.apply`
+already ignores it, but **no sensor emits one** and the ship has no timer. A
+sensor that dies without closing the socket is never marked offline.
+
+**Files to touch:**
+
+| File | What to do |
+|---|---|
+| `sensor/main.py` | send a `HEARTBEAT` every `HEARTBEAT_INTERVAL`, whether or not it has a detection to report. Do not use `time.sleep(delay)` alone; wake up for whichever comes first. |
+| `ship/config.py` | add `HEARTBEAT_INTERVAL` and `NODE_TIMEOUT` (`3 x HEARTBEAT_INTERVAL`) |
+| `ship/registry.py` | record `last_seen` per sector on every message of any type; add `expire(now) -> set[SectorType]` |
+| `ship/server.py` | call `registry.expire()` on the tick from item 3; drop expired sectors from `online` and tell the dashboard |
 
 **Done when:**
 
-- a sensor can be started with `--alien`, making it occasionally report a
-  value its own world did not produce
-- the ship detects the injection and does not let a single alien node raise
-  RED_ALERT on its own
-- a legitimate detection from that sector still counts
-- the dashboard marks the node as suspect instead of hiding it
-
-Keep it bounded: the assignment asks the system to survive a lying sensor, not
-to build a Byzantine-agreement protocol.
+- a sensor sends a heartbeat every interval even with no detection
+- a sector is marked offline after `NODE_TIMEOUT` with no message of any kind
+- a heartbeated sector returns online without reconnecting
+- a sensor killed with `SIGKILL`, socket left open, goes offline within the
+  timeout
+- **a sector marked offline keeps its last cell.** Silence is not a zero. This
+  is the current behaviour and must not change.
 
 **Size:** M. **Owner:** B.
 
 ---
 
-## 6. Coverage reconfiguration — requirement 4
+## 5. Coverage reporting — requirement 4
 
-**Missing.** When a sector goes offline its cell freezes, which is correct, but
+> "…reconfiguración dinámica de cobertura."
+
+**Missing.** When a sector goes offline its cell freezes, which is right, but
 nothing reports which sectors are uncovered.
 
-**Where:** `ship/registry.py`, `ship/console.py`.
+**Files to touch:**
+
+| File | What to do |
+|---|---|
+| `ship/registry.py` | `uncovered() -> set[SectorType]` alongside `online()` |
+| `ship/console.py` | show the count in the sensor panel header and mark the cell of an offline sector differently from a fresh `0` |
 
 **Done when:**
 
-- the board distinguishes "no reading" from "read 0", which it does today,
-  and the dashboard shows how many sectors are currently uncovered
+- the board distinguishes "no reading" from "read 0", which the matrix already
+  does by keeping the value
+- the dashboard shows how many sectors are uncovered
 - the ship never treats a frozen cell as a fresh confirmation
+- the demo can kill a sensor and show the coverage count drop by one
 
 **Size:** S. **Owner:** B.
 
 ---
 
-## 7. Video — 25 points
+## 6. Aliens — requirement 5
+
+> "Suponer que los sensores pueden ser controlados por aliens y pueden fallar."
+
+**Missing.** `origin: "alien"` is on the wire and the ship ignores it.
+`grep origin ship/` returns nothing.
+
+**Files to touch:**
+
+| File | What to do |
+|---|---|
+| `sensor/main.py` | `--alien` flag; with it the sensor occasionally reports a value its own world did not produce, and sets `origin="alien"` on those |
+| `ship/detector.py` | ignore or down-weight sectors whose events arrived with `origin="alien"`; a single alien sector must not raise RED_ALERT alone |
+| `ship/console.py` | mark the node as suspect rather than hiding it |
+
+**Done when:**
+
+- a sensor started with `--alien` injects wrong values
+- the ship does not let one alien sector raise RED_ALERT on its own
+- a legitimate detection from that same sector still counts
+- the dashboard shows the node as suspect
+- honest nodes are unaffected with no alien present
+
+Keep it bounded: the assignment asks the system to survive a lying sensor, not
+to build Byzantine agreement.
+
+**Size:** M. **Owner:** B.
+
+---
+
+## 7. Demo video — 25 points
 
 Not code, but the largest single block of the rubric.
 
@@ -154,21 +242,6 @@ Not code, but the largest single block of the rubric.
 **Size:** S to record, M to get clean. **Owner:** both.
 
 ---
-
-## Suggested order
-
-| # | Item | Points | Size |
-|---|---|---|---|
-| 1 | Shared-seed PRNG | 15 | S |
-| 2 | Heartbeats + timeout | part of 20 | M |
-| 3 | Duplicate suppression | part of 20 | S |
-| 7 | Video | 25 | S |
-| 5 | Aliens | requirement 5 | M |
-| 4 | Prioritization | part of 20 | M |
-| 6 | Coverage reporting | part of 20 | S |
-
-Items 1, 2 and 3 together cover the three specific requirements that are
-currently unimplemented and are all small. Start there.
 
 ## Not planned
 
