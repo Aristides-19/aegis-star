@@ -75,7 +75,7 @@ class Dashboard:
                 "TTY. Arranca la nave sin pipe ni tee.[/yellow]"
             )
             return
-        self._live = Live(
+        live = Live(
             self._render(),
             console=self._console,
             refresh_per_second=8,
@@ -83,7 +83,9 @@ class Dashboard:
             screen=False,
             vertical_overflow="ellipsis",
         )
-        self._live.start()
+        self._live = live
+        live.start()
+
 
     def stop(self) -> None:
         if self._live is not None:
@@ -167,14 +169,23 @@ class Dashboard:
                 else Text("0", style="dim"),
             )
 
+        # Cálculo dinámico de cobertura para el panel
+        online_count = len(self._online)
+        uncovered_count = 8 - online_count
+        sensors_title = f"[bold]sensores[/bold] [dim]{online_count}/8[/dim]"
+        if self._suspect:
+            sensors_title += f" [bold magenta]{len(self._suspect)} alien[/bold magenta]"
+        if uncovered_count > 0:
+            sensors_title += f" [dim yellow]({uncovered_count} sin cobertura)[/dim yellow]"
+
         columns = Table.grid(expand=True)
         columns.add_column(ratio=3)
         columns.add_column(ratio=2)
         columns.add_row(
             Panel(self._board(), title=_ALARM_TITLE if alarm else _SAFE_TITLE,
                   border_style="red" if alarm else "blue"),
-            Panel(nodes, title=f"[bold]sensores[/bold] [dim]{len(self._online)}/8[/dim]",
-                  border_style="blue"),
+            Panel(nodes, title=sensors_title,
+                  border_style="yellow" if uncovered_count else "blue"),
         )
 
         events: RenderableType = (
@@ -202,10 +213,17 @@ class Dashboard:
                     cells.append(Text("◉ NAVE", style="bold yellow"))
                     continue
                 hit = self._matrix[row_index][col_index] == 1
-                cells.append(
-                    Text(f"█ 1 {name}" if hit else f"· 0 {name}",
-                         style="bold red" if hit else "dim")
-                )
+                online = name in self._online
+                if not online:
+                    cells.append(
+                        Text(f"░ {1 if hit else 0} {name}", style="yellow" if hit else "dim yellow")
+                    )
+                else:
+                    cells.append(
+                        Text(f"█ 1 {name}" if hit else f"· 0 {name}",
+                             style="bold red" if hit else "dim")
+                    )
+
             grid.add_row(*cells)
         # Pad so the board panel matches the taller node panel.
         for _ in range(len(_SECTORS) - len(_ROWS)):

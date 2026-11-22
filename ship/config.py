@@ -44,6 +44,12 @@ RECONNECT_DELAY: float = float(os.getenv("AEGIS_RECONNECT_DELAY", "1.0"))
 #: The eight sectors, in the order start.sh lays them out.
 SECTOR_ORDER: tuple[str, ...] = ("NO", "N", "NE", "E", "SE", "S", "SO", "O")
 
+#: Seconds between heartbeat messages from a sensor.
+HEARTBEAT_INTERVAL: float = float(os.getenv("AEGIS_HEARTBEAT_INTERVAL", "1.0"))
+
+#: Seconds without any message before a sensor is considered offline.
+NODE_TIMEOUT: float = float(os.getenv("AEGIS_NODE_TIMEOUT", str(3 * HEARTBEAT_INTERVAL)))
+
 __all__ = [
     "ACCEPT_POLL_SECONDS",
     "ALIEN_LIE_PROBABILITY",
@@ -57,4 +63,6 @@ __all__ = [
     "SENSOR_INTERVAL",
     "SHIP_HOST",
     "TICK_SECONDS",
+    "HEARTBEAT_INTERVAL",
+    "NODE_TIMEOUT"
 ]

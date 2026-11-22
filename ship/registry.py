@@ -1,46 +1,60 @@
-<<<<<<< HEAD
 """Thread-safe registry tracking active and offline radar sensor sectors."""
-import threading
-from common.sectors import SectorType
-
-=======
-"""Thread-safe registry tracking which sector nodes are connected."""
 
 from __future__ import annotations
 
 import threading
+import time
 
-from common.sectors import SectorType
+from common.sectors import SECTOR_MAP, SectorType
+from ship import config
 
 
->>>>>>> 7b409b7d031ac951c809f2f039e02f6e46475984
 class NodeRegistry:
-    def __init__(self):
-        self.lock = threading.Lock()
-        self.online_sectors: set[SectorType] = set()
+    """Tracks online sensors, timestamps of last seen, and coverage."""
 
-    def register(self, sector: SectorType):
-        with self.lock:
-            self.online_sectors.add(sector)
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._online: set[SectorType] = set()
+        self._last_seen: dict[SectorType, float] = {}
 
-    def unregister(self, sector: SectorType):
-        with self.lock:
-            self.online_sectors.discard(sector)
+    def register(self, sector: SectorType, now: float | None = None) -> None:
+        """Mark a sector online and record timestamp."""
+        ts = time.time() if now is None else now
+        with self._lock:
+            self._online.add(sector)
+            self._last_seen[sector] = ts
 
-<<<<<<< HEAD
-    def get_online(self) -> list[str]:
-        with self.lock:
-            return sorted(list(self.online_sectors))
-=======
+    def touch(self, sector: SectorType, now: float | None = None) -> None:
+        """Update timestamp for an already registered sector."""
+        self.register(sector, now)
+
+    def unregister(self, sector: SectorType) -> None:
+        """Remove a sector when its connection cleanly closes."""
+        with self._lock:
+            self._online.discard(sector)
+            self._last_seen.pop(sector, None)
+
     def online(self) -> set[SectorType]:
-        """Copy of the connected sectors, safe to read outside the lock."""
-        with self.lock:
-            return set(self.online_sectors)
+        """Set of sectors currently connected and alive."""
+        with self._lock:
+            return set(self._online)
 
-    def get_online(self) -> list[SectorType]:
-        with self.lock:
-            return sorted(self.online_sectors)
+    def uncovered(self) -> set[SectorType]:
+        """Set of sectors not currently covered."""
+        with self._lock:
+            return set(SECTOR_MAP.keys()) - self._online
+
+    def expire(self, now: float | None = None) -> set[SectorType]:
+        """Mark offline any sector that has timed out. Returns expired sectors."""
+        ts = time.time() if now is None else now
+        expired: set[SectorType] = set()
+        with self._lock:
+            for sector, last in list(self._last_seen.items()):
+                if ts - last > config.NODE_TIMEOUT:
+                    expired.add(sector)
+                    self._online.discard(sector)
+                    self._last_seen.pop(sector, None)
+        return expired
 
 
 __all__ = ["NodeRegistry"]
->>>>>>> 7b409b7d031ac951c809f2f039e02f6e46475984

@@ -1,45 +1,5 @@
-<<<<<<< HEAD
-"""Sensor client entry point. Connects to the ship server via TCP and streams detection events."""
-import socket
-import time
-import sys
-from typing import cast
-from common.framing import send_msg
-from common.sectors import SectorType, SECTOR_MAP
-from sensor.world import generate_event
-
-def run_sensor(sector: SectorType, host: str = "127.0.0.1", port: int = 5000):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        sock.connect((host, port))
-        print(f"[+] Sensor {sector} conectado a la nave.")
-        seq = 0
-        while True:
-            event = generate_event(sector, seq)
-            send_msg(sock, event)
-            seq += 1
-            time.sleep(2.0)  # Envía reporte cada 2 segundos
-    except (socket.error, KeyboardInterrupt):
-        print(f"[-] Sensor {sector} desconectado.")
-    finally:
-        sock.close()
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2 or sys.argv[1] not in SECTOR_MAP:
-        sectores_validos = ", ".join(SECTOR_MAP.keys())
-        print(f"Uso: python -m sensor.main <SECTOR>")
-        print(f"Sectores válidos: {sectores_validos}")
-        sys.exit(1)
-        
-    # cast le asegura a Pylance que sys.argv[1] es un SectorType válido
-    sector_arg = cast(SectorType, sys.argv[1])
-    run_sensor(sector_arg)
-=======
 """Sensor client entry point. Connects to the ship server via TCP and streams
-detection events.
-
-Reconnects instead of dying when the ship is not up yet, so ``start.sh`` can
-launch all eight sensors without racing the server.
+detection and heartbeat events.
 """
 
 from __future__ import annotations
@@ -56,21 +16,19 @@ from rich.text import Text
 
 from common.framing import send_msg
 from common.protocol import SensorEvent
+from common.rng import stream_for
 from common.sectors import SECTOR_MAP, SectorType
 from ship import config
 from sensor.world import DetectionVal, generate_event
-
 
 _CONSOLE = Console(highlight=False)
 
 
 def _say(sector: SectorType, message: str, style: str = "dim") -> None:
-    """One coloured line, sector first so the panes line up."""
     _CONSOLE.print(Text.assemble((f" {sector:<2} ", "bold cyan"), (message, style)))
 
 
 def _connect(sector: SectorType) -> socket.socket | None:
-    """Try once. Returns None when the ship is not listening yet."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         sock.connect((config.SENSOR_HOST, config.PORT))
@@ -81,7 +39,6 @@ def _connect(sector: SectorType) -> socket.socket | None:
 
 
 def _maybe_lie(event: SensorEvent, sector: SectorType) -> SensorEvent:
-    """``--alien``: report the opposite of what was detected, flagged as such."""
     if random.random() >= config.ALIEN_LIE_PROBABILITY:
         return event
     flipped: DetectionVal = 0 if event.val == 1 else 1
@@ -94,10 +51,15 @@ def run_sensor(
     once: bool = False,
     force_val: int | None = None,
     alien: bool = False,
+    seed: str | None = None,
 ) -> None:
     delay = interval if interval is not None else config.SENSOR_INTERVAL
+    hb_interval = config.HEARTBEAT_INTERVAL
     waiting_announced = False
     seq = 0
+
+    effective_seed = seed or config.SEED
+    stream = stream_for(effective_seed, sector) if effective_seed else None
 
     while True:
         sock = _connect(sector)
@@ -111,25 +73,58 @@ def run_sensor(
         waiting_announced = False
         _say(sector, f"conectado a {config.SENSOR_HOST}:{config.PORT}", "bold green")
         try:
+            last_detection = 0.0
+            last_heartbeat = 0.0
+            last_val: DetectionVal = 0
+
             while True:
-                event = generate_event(sector, seq, force_val=cast(DetectionVal | None, force_val))
-                if alien:
-                    event = _maybe_lie(event, sector)
-                send_msg(sock, event)
-                if event.origin == "alien":
-                    style = "bold magenta"
-                    note = "  MIENTE"
-                elif event.val == 1:
-                    style = "bold red"
-                    note = ""
-                else:
-                    style = "dim"
-                    note = ""
-                _say(sector, f"#{seq:<4} enviado   val={event.val}{note}", style)
-                seq += 1
-                if once:
-                    return
-                time.sleep(delay)
+                now = time.time()
+
+                # 1. Enviar detección periódica
+                if now - last_detection >= delay:
+                    event = generate_event(
+                        sector,
+                        seq,
+                        stream=stream,
+                        force_val=cast(DetectionVal | None, force_val),
+                    )
+                    if alien:
+                        event = _maybe_lie(event, sector)
+                    send_msg(sock, event)
+                    last_val = event.val
+                    last_detection = now
+                    last_heartbeat = now
+
+                    if event.origin == "alien":
+                        style = "bold magenta"
+                        note = "  MIENTE"
+                    elif event.val == 1:
+                        style = "bold red"
+                        note = ""
+                    else:
+                        style = "dim"
+                        note = ""
+                    _say(sector, f"#{seq:<4} enviado   val={event.val}{note}", style)
+                    seq += 1
+                    if once:
+                        return
+
+                # 2. Enviar heartbeat periódico si no hubo detección reciente
+                elif now - last_heartbeat >= hb_interval:
+                    hb_event = SensorEvent(
+                        type="HEARTBEAT",
+                        sector=sector,
+                        val=last_val,
+                        timestamp=now,
+                        seq=seq,
+                        origin="astro",
+                    )
+                    send_msg(sock, hb_event)
+                    last_heartbeat = now
+                    _say(sector, f"#{seq:<4} heartbeat val={last_val}", "dim cyan")
+                    seq += 1
+
+                time.sleep(0.05)
         except OSError:
             _say(sector, "enlace perdido, reintentando", "bold yellow")
         finally:
@@ -145,6 +140,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--once", action="store_true", help="enviar un solo evento y salir")
     parser.add_argument("--val", type=int, choices=(0, 1), help="forzar el valor enviado")
     parser.add_argument("--interval", type=float, help="segundos entre envíos")
+    parser.add_argument("--seed", type=str, help="semilla compartida para el generador PRNG")
     parser.add_argument(
         "--alien",
         action="store_true",
@@ -163,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
             once=args.once,
             force_val=args.val,
             alien=args.alien,
+            seed=args.seed,
         )
     except KeyboardInterrupt:
         _say(sector, "detenido", "bold yellow")
@@ -171,4 +168,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
->>>>>>> 7b409b7d031ac951c809f2f039e02f6e46475984
