@@ -30,6 +30,33 @@ uv run python -m sensor.main N          # un sensor suelto
 
 El puerto es `5000`: la nave escucha, los sensores conectan.
 
+### Windows (sin tmux)
+
+Desde PowerShell, despues de `uv sync`:
+
+```powershell
+.\start.ps1                 # nave y ocho sensores en una ventana con nueve pestanas
+.\start.ps1 -Stop           # detener la sesion completa (tambien admite -k)
+$env:AEGIS_SEED = '42'       # opcional: repetir las secuencias de lecturas
+.\start.ps1
+```
+
+Si Windows bloquea la ejecucion del script, puede ejecutarse sin cambiar la
+politica permanente del equipo:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start.ps1 -Stop
+```
+
+Requiere Windows Terminal (wt.exe), pero no tmux, WSL ni permisos de administrador. Cada pestana muestra un
+proceso; cerrar una no detiene las otras. Usa `-Stop` antes de cerrar las
+pestanas para detener todos sus procesos. Volver a ejecutar el lanzador
+reinicia su sesion anterior. El archivo local `.aegis-processes.json` registra
+los procesos de esta copia del proyecto; no se sube a Git. No borres ese archivo
+mientras la sesion este activa. Las variables `AEGIS_*` se heredan en todos
+los procesos, incluida la misma semilla.
+
 ## Estructura
 
 ```text
